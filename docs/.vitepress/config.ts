@@ -22,6 +22,7 @@ export default defineConfig({
   description: SITE_DESCRIPTION,
   lastUpdated: true,
   cleanUrls: true,
+  base: "/env.zig/",
 
   sitemap: {
     hostname: SITE_URL,
