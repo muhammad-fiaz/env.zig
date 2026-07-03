@@ -2,7 +2,7 @@
 
 ## Reporting a Vulnerability
 
-If you discover a security vulnerability within env.zig, please send an email to [muhammad-fiaz](https://github.com/muhammad-fiaz). All security vulnerabilities will be promptly addressed.
+If you discover a security vulnerability within env.zig, please [create a GitHub issue](https://github.com/muhammad-fiaz/env.zig/issues/new?template=bug_report.md). All security vulnerabilities will be promptly addressed.
 
 ## Supported Versions
 
