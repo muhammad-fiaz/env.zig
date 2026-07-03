@@ -1,0 +1,44 @@
+name: Documentation Issue
+description: Report incorrect or missing documentation
+labels: ['documentation']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve our documentation!
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Issue Description
+      description: What's wrong or missing in the docs?
+    validations:
+      required: true
+
+  - type: input
+    id: page
+    attributes:
+      label: Documentation Page
+      description: Which page has the issue?
+      placeholder: "guide/getting-started.md"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: type
+    attributes:
+      label: Issue Type
+      options:
+        - Incorrect information
+        - Missing information
+        - Broken link
+        - Formatting issue
+        - Typo
+    validations:
+      required: true
+
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: Suggested Fix
+      description: If you know how to fix it, describe the correction

@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Documentation
+    url: https://muhammad-fiaz.github.io/env.zig
+    about: Read the documentation
+  - name: Discussions
+    url: https://github.com/muhammad-fiaz/env.zig/discussions
+    about: Ask questions and discuss ideas

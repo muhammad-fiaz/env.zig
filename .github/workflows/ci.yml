@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test (Zig ${{ matrix.zig-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        zig-version: ['0.16.0', 'master']
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: ${{ matrix.zig-version }}
+
+      - name: Build
+        run: zig build
+
+      - name: Test
+        run: zig build test --summary all
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: '0.16.0'
+
+      - name: Check formatting
+        run: zig fmt --check src/
+
+      - name: Build
+        run: zig build -Doptimize=ReleaseSafe

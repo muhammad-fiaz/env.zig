@@ -1,0 +1,44 @@
+name: Feature Request
+description: Suggest a new feature for env.zig
+labels: ['enhancement']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting a feature! Please describe what you'd like.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Feature Description
+      description: A clear description of the feature
+    validations:
+      required: true
+
+  - type: textarea
+    id: use-case
+    attributes:
+      label: Use Case
+      description: Why this feature would be useful
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: Any alternative solutions or workarounds you've considered
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: Feature Category
+      options:
+        - Core (parsing/loading)
+        - Validation
+        - Serialization
+        - Type accessors
+        - Documentation
+        - Other
+    validations:
+      required: true
