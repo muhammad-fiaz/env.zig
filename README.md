@@ -13,7 +13,7 @@
 <a href="https://github.com/sponsors/muhammad-fiaz"><img src="https://img.shields.io/badge/Sponsor-GitHub-pink?style=social&logo=github" alt="GitHub Sponsors"></a>
 <a href="https://hits.sh/muhammad-fiaz/env.zig/"><img src="https://hits.sh/muhammad-fiaz/env.zig.svg?label=Visitors&extraCount=0&color=green" alt="Repo Visitors"></a>
 
-<p><em>A production-grade runtime <code>.env</code> library for Zig — parsing, interpolation, validation, and serialization.</em></p>
+<p><em>A production-grade runtime <code>.env</code> library for Zig - parsing, interpolation, validation, and serialization.</em></p>
 
 <b><a href="https://muhammad-fiaz.github.io/env.zig/">Documentation</a> |
 <a href="https://muhammad-fiaz.github.io/env.zig/api/env">API Reference</a> |
@@ -23,7 +23,7 @@
 
 </div>
 
-`env.zig` is a production-grade runtime `.env` file library for Zig, providing everything needed to manage application configuration — parsing `.env` files, variable interpolation, schema validation, serialization, type-safe accessors, and modular architecture.
+`env.zig` is a production-grade runtime `.env` file library for Zig, providing everything needed to manage application configuration - parsing `.env` files, variable interpolation, schema validation, serialization, type-safe accessors, and modular architecture.
 
 > [!TIP]
 > If you build with env.zig, make sure to give it a star.
@@ -61,13 +61,13 @@
 | **Escape Sequences** | `\n`, `\t`, `\r`, `\\`, `\"`, `\'`, `` \` `` in double-quoted values. | https://muhammad-fiaz.github.io/env.zig/guide/getting-started |
 | **Schema Validation** | Define schemas with required fields, types, and custom validators. Errors for required, warnings for optional. | https://muhammad-fiaz.github.io/env.zig/guide/validation |
 | **Built-in Validators** | `required`, `boolean`, `integer`, `float`, `url`, `email`, `ipv4`, `hostname`, `port`, `range`, `minLength`, `maxLength`, `oneOf`. | https://muhammad-fiaz.github.io/env.zig/api/validators |
-| **Type-Safe Accessors** | `get`, `getString`, `getBool`, `getInt`, `getFloat`, `getEnum`, `getList` — automatic parsing and type conversion. | https://muhammad-fiaz.github.io/env.zig/api/env |
+| **Type-Safe Accessors** | `get`, `getString`, `getBool`, `getInt`, `getFloat`, `getEnum`, `getList` - automatic parsing and type conversion. | https://muhammad-fiaz.github.io/env.zig/api/env |
 | **Serialization** | Write configurations back to `.env` format with key sorting, value quoting, and trailing newlines. | https://muhammad-fiaz.github.io/env.zig/guide/serialization |
 | **Insertion Order** | Guaranteed key iteration order (unlike `std.process.Environ`). | https://muhammad-fiaz.github.io/env.zig/api/env |
 | **Cache** | Built-in key-value cache for frequently accessed values. | https://muhammad-fiaz.github.io/env.zig/api/env |
 | **Iterator** | Iterate over entries with `next`, `peek`, `reset`, `skip`, `remaining`, `collect`. | https://muhammad-fiaz.github.io/env.zig/api/env |
 | **Config Builder** | Chainable `.with()` pattern for configuration customization. | https://muhammad-fiaz.github.io/env.zig/api/config |
-| **Modular Architecture** | Parser, lexer, tokenizer, interpolation, schema, validator, serializer, writer, cache, iterator — all in separate files. | https://muhammad-fiaz.github.io/env.zig/api/env |
+| **Modular Architecture** | Parser, lexer, tokenizer, interpolation, schema, validator, serializer, writer, cache, iterator - all in separate files. | https://muhammad-fiaz.github.io/env.zig/api/env |
 | **Allocator-Aware** | Every allocation has a matching `deinit`, no leaks. | https://muhammad-fiaz.github.io/env.zig/guide/getting-started |
 | **Zero Global State** | No OOP, no singletons, fully composable. | https://muhammad-fiaz.github.io/env.zig/guide/getting-started |
 | **Multiple File Loading** | Load multiple `.env` files in order with override control. | https://muhammad-fiaz.github.io/env.zig/api/env |
@@ -308,9 +308,9 @@ const msg = env.get("MESSAGE");
 
 The `examples/` directory contains comprehensive, runnable examples:
 
-- **Basic** — Set/get values, type-safe accessors, iteration, serialization.
-- **Validation** — Schema validation with built-in validators.
-- **Serialization** — Serialize to `.env` format with sorting and quoting.
+- **Basic** - Set/get values, type-safe accessors, iteration, serialization.
+- **Validation** - Schema validation with built-in validators.
+- **Serialization** - Serialize to `.env` format with sorting and quoting.
 
 To run any example:
 
@@ -375,4 +375,4 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines.
 
 ## License
 
-MIT License — see [LICENSE](LICENSE) for details.
+MIT License - see [LICENSE](LICENSE) for details.
