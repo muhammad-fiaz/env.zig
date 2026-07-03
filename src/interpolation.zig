@@ -27,7 +27,7 @@ fn interpolateImpl(
 ) (std.mem.Allocator.Error || error{ CircularDependency, MaxDepthExceeded })![]const u8 {
     if (current_depth > max_depth) return error.MaxDepthExceeded;
 
-    var result: std.ArrayListUnmanaged(u8) = .empty;
+    var result: std.ArrayList(u8) = .empty;
     errdefer result.deinit(allocator);
 
     var i: usize = 0;

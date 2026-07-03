@@ -3,13 +3,15 @@ title: Iterator
 titleTemplate: "Iterator | env.zig"
 description: Learn how to iterate over env.zig key-value pairs with peek, skip, reset, and collect operations.
 head:
-  - meta:
-      - property: og:title
-        content: "Iterator | env.zig"
-      - name: description
-        content: Learn how to iterate over env.zig key-value pairs with peek, skip, reset, and collect operations.
-      - name: keywords
-        content: "zig, env, iterator, iterate, entries, keys, values, env.zig"
+  - - meta
+    - property: og:title
+      content: "Iterator | env.zig"
+  - - meta
+    - name: description
+      content: Learn how to iterate over env.zig key-value pairs with peek, skip, reset, and collect operations.
+  - - meta
+    - name: keywords
+      content: "zig, env, iterator, iterate, entries, keys, values, env.zig"
 ---
 
 # Iterator

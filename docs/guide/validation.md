@@ -3,13 +3,15 @@ title: Validation
 titleTemplate: "Validation | env.zig"
 description: Schema validation and built-in validators for env.zig configuration with error and warning support.
 head:
-  - meta:
-      - property: og:title
-        content: "Validation | env.zig"
-      - meta: description
-        content: Schema validation and built-in validators for env.zig.
-      - name: keywords
-        content: "zig, env, validation, schema, validator, required, optional, boolean, integer, port, url, warning, error"
+  - - meta
+    - property: og:title
+      content: "Validation | env.zig"
+  - - meta
+    - name: description
+      content: Schema validation and built-in validators for env.zig.
+  - - meta
+    - name: keywords
+      content: "zig, env, validation, schema, validator, required, optional, boolean, integer, port, url, warning, error"
 ---
 
 # Validation

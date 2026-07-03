@@ -3,13 +3,15 @@ title: Interpolation
 titleTemplate: "Interpolation | env.zig"
 description: Learn how to use variable interpolation in env.zig to reference other .env variables with ${VAR} syntax.
 head:
-  - meta:
-      - property: og:title
-        content: "Interpolation | env.zig"
-      - name: description
-        content: Learn how to use variable interpolation in env.zig to reference other .env variables with ${VAR} syntax.
-      - name: keywords
-        content: "zig, env, interpolation, ${VAR}, variable substitution, env.zig"
+  - - meta
+    - property: og:title
+      content: "Interpolation | env.zig"
+  - - meta
+    - name: description
+      content: Learn how to use variable interpolation in env.zig to reference other .env variables with ${VAR} syntax.
+  - - meta
+    - name: keywords
+      content: "zig, env, interpolation, ${VAR}, variable substitution, env.zig"
 ---
 
 # Interpolation

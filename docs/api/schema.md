@@ -3,13 +3,15 @@ title: Schema API
 titleTemplate: "Schema API | env.zig"
 description: Schema-based validation API for env.zig configurations.
 head:
-  - meta:
-      - property: og:title
-        content: "Schema API | env.zig"
-      - meta: description
-        content: Schema-based validation API for env.zig.
-      - name: keywords
-        content: "zig, env, schema, validation, FieldDef, ValidationError"
+  - - meta
+    - property: og:title
+      content: "Schema API | env.zig"
+  - - meta
+    - name: description
+      content: Schema-based validation API for env.zig.
+  - - meta
+    - name: keywords
+      content: "zig, env, schema, validation, FieldDef, ValidationError"
 ---
 
 # Schema API Reference

@@ -20,7 +20,7 @@ pub const validator = validator_mod;
 pub const Env = struct {
     allocator: std.mem.Allocator,
     entries: std.StringHashMap([]const u8),
-    insertion_order: std.ArrayListUnmanaged([]const u8),
+    insertion_order: std.ArrayList([]const u8),
     config: Config,
     cache: cache_mod.Cache,
 
@@ -177,7 +177,7 @@ pub const Env = struct {
     /// Get a list of values by splitting on a delimiter.
     pub fn getList(self: *const Env, allocator: std.mem.Allocator, key: []const u8, delimiter: u8) ?[][]const u8 {
         const val = self.get(key) orelse return null;
-        var result: std.ArrayListUnmanaged([]const u8) = .empty;
+        var result: std.ArrayList([]const u8) = .empty;
         var it = std.mem.splitScalar(u8, val, delimiter);
         while (it.next()) |item| {
             const trimmed = std.mem.trim(u8, item, " \t\r\n");
@@ -246,7 +246,7 @@ pub const Env = struct {
 
     /// Serialize entries to .env format.
     pub fn serialize(self: *const Env) ![]const u8 {
-        var entries: std.ArrayListUnmanaged(serializer_mod.SerEntry) = .empty;
+        var entries: std.ArrayList(serializer_mod.SerEntry) = .empty;
         for (self.insertion_order.items) |key| {
             if (self.entries.get(key)) |val| {
                 try entries.append(self.allocator, .{ .key = key, .value = val });
@@ -258,7 +258,7 @@ pub const Env = struct {
 
     /// Write entries to a file.
     pub fn save(self: *const Env, path: []const u8) !void {
-        var entries: std.ArrayListUnmanaged(serializer_mod.SerEntry) = .empty;
+        var entries: std.ArrayList(serializer_mod.SerEntry) = .empty;
         for (self.insertion_order.items) |key| {
             if (self.entries.get(key)) |val| {
                 try entries.append(self.allocator, .{ .key = key, .value = val });

@@ -3,13 +3,15 @@ title: Validation Example
 titleTemplate: "Validation Example | env.zig"
 description: Schema validation example for env.zig with built-in validators, errors, and warnings.
 head:
-  - meta:
-      - property: og:title
-        content: "Validation Example | env.zig"
-      - meta: description
-        content: Schema validation example for env.zig with built-in validators, errors, and warnings.
-      - name: keywords
-        content: "zig, env, example, validation, schema, validator, warning, error"
+  - - meta
+    - property: og:title
+      content: "Validation Example | env.zig"
+  - - meta
+    - name: description
+      content: Schema validation example for env.zig with built-in validators, errors, and warnings.
+  - - meta
+    - name: keywords
+      content: "zig, env, example, validation, schema, validator, warning, error"
 ---
 
 # Validation Example

@@ -36,11 +36,6 @@
 > [!TIP]
 > If you build with env.zig, make sure to give it a star.
 
-> [!NOTE]
-> **Project maturity:** This project aims to be production-ready and is actively maintained. It is still a new project and not yet widely adopted. Feel free to use it in your projects.
->
-> **Zig 0.16.0 native:** Built for Zig 0.16.0 with `std.Io`-based file APIs, `ArrayListUnmanaged`, and `DebugAllocator`.
-
 ---
 
 <details>

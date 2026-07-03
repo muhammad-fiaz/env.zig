@@ -3,13 +3,15 @@ title: Cache
 titleTemplate: "Cache | env.zig"
 description: Learn how to use the built-in cache in env.zig for storing parsed key-value pairs separately from environment entries.
 head:
-  - meta:
-      - property: og:title
-        content: "Cache | env.zig"
-      - name: description
-        content: Learn how to use the built-in cache in env.zig for storing parsed key-value pairs separately from environment entries.
-      - name: keywords
-        content: "zig, env, cache, storage, key-value, env.zig"
+  - - meta
+    - property: og:title
+      content: "Cache | env.zig"
+  - - meta
+    - name: description
+      content: Learn how to use the built-in cache in env.zig for storing parsed key-value pairs separately from environment entries.
+  - - meta
+    - name: keywords
+      content: "zig, env, cache, storage, key-value, env.zig"
 ---
 
 # Cache

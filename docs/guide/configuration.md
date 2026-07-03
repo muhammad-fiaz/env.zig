@@ -3,13 +3,15 @@ title: Configuration
 titleTemplate: "Configuration | env.zig"
 description: Configure env.zig parsing, interpolation, and serialization behavior with the Config struct.
 head:
-  - meta:
-      - property: og:title
-        content: "Configuration | env.zig"
-      - meta: description
-        content: Configure env.zig parsing, interpolation, and serialization behavior.
-      - name: keywords
-        content: "zig, env, config, configuration, options, settings"
+  - - meta
+    - property: og:title
+      content: "Configuration | env.zig"
+  - - meta
+    - name: description
+      content: Configure env.zig parsing, interpolation, and serialization behavior.
+  - - meta
+    - name: keywords
+      content: "zig, env, config, configuration, options, settings"
 ---
 
 # Configuration

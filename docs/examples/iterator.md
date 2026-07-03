@@ -3,13 +3,15 @@ title: Iterator Example
 titleTemplate: "Iterator Example | env.zig"
 description: Working example of the iterator API in env.zig with peek, skip, reset, and collect operations.
 head:
-  - meta:
-      - property: og:title
-        content: "Iterator Example | env.zig"
-      - meta: description
-        content: Working example of the iterator API in env.zig.
-      - name: keywords
-        content: "zig, env, iterator, iterate, entries, keys, values, example, env.zig"
+  - - meta
+    - property: og:title
+      content: "Iterator Example | env.zig"
+  - - meta
+    - name: description
+      content: Working example of the iterator API in env.zig.
+  - - meta
+    - name: keywords
+      content: "zig, env, iterator, iterate, entries, keys, values, example, env.zig"
 ---
 
 # Iterator Example

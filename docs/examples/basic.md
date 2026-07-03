@@ -3,13 +3,15 @@ title: Basic Example
 titleTemplate: "Basic Example | env.zig"
 description: Working example of basic env.zig usage with set/get, type-safe accessors, iteration, and serialization.
 head:
-  - meta:
-      - property: og:title
-        content: "Basic Example | env.zig"
-      - meta: description
-        content: Working example of basic env.zig usage.
-      - name: keywords
-        content: "zig, env, basic, set, get, example, env.zig"
+  - - meta
+    - property: og:title
+      content: "Basic Example | env.zig"
+  - - meta
+    - name: description
+      content: Working example of basic env.zig usage.
+  - - meta
+    - name: keywords
+      content: "zig, env, basic, set, get, example, env.zig"
 ---
 
 # Basic Example

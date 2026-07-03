@@ -3,13 +3,15 @@ title: Serialization
 titleTemplate: "Serialization | env.zig"
 description: Serialize env.zig configurations back to .env format with sorting and quoting.
 head:
-  - meta:
-      - property: og:title
-        content: "Serialization | env.zig"
-      - meta: description
-        content: Serialize env.zig configurations back to .env format.
-      - name: keywords
-        content: "zig, env, serialization, serialize, write, save, .env format"
+  - - meta
+    - property: og:title
+      content: "Serialization | env.zig"
+  - - meta
+    - name: description
+      content: Serialize env.zig configurations back to .env format.
+  - - meta
+    - name: keywords
+      content: "zig, env, serialization, serialize, write, save, .env format"
 ---
 
 # Serialization

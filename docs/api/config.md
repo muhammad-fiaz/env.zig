@@ -3,13 +3,15 @@ title: Config API
 titleTemplate: "Config API | env.zig"
 description: Configuration options API for env.zig parsing, interpolation, and serialization.
 head:
-  - meta:
-      - property: og:title
-        content: "Config API | env.zig"
-      - meta: description
-        content: Configuration options API for env.zig.
-      - name: keywords
-        content: "zig, env, config, options, settings, builder"
+  - - meta
+    - property: og:title
+      content: "Config API | env.zig"
+  - - meta
+    - name: description
+      content: Configuration options API for env.zig.
+  - - meta
+    - name: keywords
+      content: "zig, env, config, options, settings, builder"
 ---
 
 # Config API Reference

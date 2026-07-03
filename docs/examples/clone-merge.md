@@ -3,13 +3,15 @@ title: Clone & Merge Example
 titleTemplate: "Clone & Merge Example | env.zig"
 description: Working example of cloning and merging env.zig instances for independent copies and default value patterns.
 head:
-  - meta:
-      - property: og:title
-        content: "Clone & Merge Example | env.zig"
-      - meta: description
-        content: Working example of cloning and merging env.zig instances.
-      - name: keywords
-        content: "zig, env, clone, merge, copy, defaults, example, env.zig"
+  - - meta
+    - property: og:title
+      content: "Clone & Merge Example | env.zig"
+  - - meta
+    - name: description
+      content: Working example of cloning and merging env.zig instances.
+  - - meta
+    - name: keywords
+      content: "zig, env, clone, merge, copy, defaults, example, env.zig"
 ---
 
 # Clone & Merge Example

@@ -3,13 +3,15 @@ title: Env API
 titleTemplate: "Env API | env.zig"
 description: Full API reference for the Env struct — parsing, reading, writing, updating, and deleting .env entries in env.zig.
 head:
-  - meta:
-      - property: og:title
-        content: "Env API | env.zig"
-      - meta: description
-        content: Full API reference for the Env struct in env.zig.
-      - name: keywords
-        content: "zig, env, API, Env, init, deinit, load, get, set, remove, clear, serialize"
+  - - meta
+    - property: og:title
+      content: "Env API | env.zig"
+  - - meta
+    - name: description
+      content: Full API reference for the Env struct in env.zig.
+  - - meta
+    - name: keywords
+      content: "zig, env, API, Env, init, deinit, load, get, set, remove, clear, serialize"
 ---
 
 # Env API Reference

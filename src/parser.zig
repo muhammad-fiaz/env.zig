@@ -27,8 +27,8 @@ pub const ParseOptions = struct {
 
 /// Result of parsing a .env file.
 pub const ParseResult = struct {
-    entries: std.ArrayListUnmanaged(Entry),
-    errors_list: std.ArrayListUnmanaged(Diagnostic),
+    entries: std.ArrayList(Entry),
+    errors_list: std.ArrayList(Diagnostic),
 
     pub fn deinit(self: *ParseResult, allocator: std.mem.Allocator) void {
         for (self.entries.items) |entry| {
@@ -131,7 +131,7 @@ pub fn parse(
                     .backtick_quoted_value => removeQuotes(val_tok.slice, '`'),
                     .interpolation => blk: {
                         // Interpolation may be followed by more text (e.g. ${GREETING} world)
-                        var full_value: std.ArrayListUnmanaged(u8) = .empty;
+                        var full_value: std.ArrayList(u8) = .empty;
                         errdefer full_value.deinit(allocator);
                         try full_value.appendSlice(allocator, val_tok.slice);
                         while (true) {
@@ -231,7 +231,7 @@ fn removeQuotes(slice: []const u8, quote: u8) []const u8 {
 /// Process escape sequences in a quoted value.
 /// Supports: \n, \t, \r, \\, \", \', \`
 fn processEscapes(allocator: std.mem.Allocator, slice: []const u8) ![]const u8 {
-    var result: std.ArrayListUnmanaged(u8) = .empty;
+    var result: std.ArrayList(u8) = .empty;
     errdefer result.deinit(allocator);
 
     var i: usize = 0;

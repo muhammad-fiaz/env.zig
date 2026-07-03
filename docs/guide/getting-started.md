@@ -3,13 +3,15 @@ title: Getting Started
 titleTemplate: "Getting Started | env.zig"
 description: Install and set up env.zig — a simple and fast .env parsing and reading library for Zig with write, update, delete, interpolation, validation, and serialization.
 head:
-  - meta:
-      - property: og:title
-        content: "Getting Started | env.zig"
-      - meta: description
-        content: Install and set up env.zig for parsing .env files in Zig projects.
-      - name: keywords
-        content: "zig, env, dotenv, getting started, installation, quick start, parse, read, write, update, delete"
+  - - meta
+    - property: og:title
+      content: "Getting Started | env.zig"
+  - - meta
+    - name: description
+      content: Install and set up env.zig for parsing .env files in Zig projects.
+  - - meta
+    - name: keywords
+      content: "zig, env, dotenv, getting started, installation, quick start, parse, read, write, update, delete"
 ---
 
 # Getting Started

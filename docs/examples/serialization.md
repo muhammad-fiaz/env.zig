@@ -3,13 +3,15 @@ title: Serialization Example
 titleTemplate: "Serialization Example | env.zig"
 description: Serialization example for env.zig — write configurations back to .env format.
 head:
-  - meta:
-      - property: og:title
-        content: "Serialization Example | env.zig"
-      - meta: description
-        content: Serialization example for env.zig — write configurations back to .env format.
-      - name: keywords
-        content: "zig, env, example, serialization, serialize, write"
+  - - meta
+    - property: og:title
+      content: "Serialization Example | env.zig"
+  - - meta
+    - name: description
+      content: Serialization example for env.zig — write configurations back to .env format.
+  - - meta
+    - name: keywords
+      content: "zig, env, example, serialization, serialize, write"
 ---
 
 # Serialization Example

@@ -17,7 +17,7 @@ pub const Serializer = struct {
         entries: []const SerEntry,
         cfg: Config,
     ) ![]const u8 {
-        var result: std.ArrayListUnmanaged(u8) = .empty;
+        var result: std.ArrayList(u8) = .empty;
         errdefer result.deinit(allocator);
 
         for (entries) |entry| {
@@ -55,7 +55,7 @@ pub const Serializer = struct {
         entries: []const SerEntry,
         cfg: Config,
     ) ![]const u8 {
-        var sorted: std.ArrayListUnmanaged(SerEntry) = .empty;
+        var sorted: std.ArrayList(SerEntry) = .empty;
         defer sorted.deinit(allocator);
 
         for (entries) |entry| {

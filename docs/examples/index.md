@@ -3,13 +3,15 @@ title: Examples
 titleTemplate: "Examples | env.zig"
 description: Complete examples for env.zig — basic usage, interpolation, clone & merge, cache, iterator, validation, and serialization.
 head:
-  - meta:
-      - property: og:title
-        content: "Examples | env.zig"
-      - meta: description
-        content: Complete examples for env.zig.
-      - name: keywords
-        content: "zig, env, examples, basic, interpolation, clone, merge, cache, iterator, validation, serialization"
+  - - meta
+    - property: og:title
+      content: "Examples | env.zig"
+  - - meta
+    - name: description
+      content: Complete examples for env.zig.
+  - - meta
+    - name: keywords
+      content: "zig, env, examples, basic, interpolation, clone, merge, cache, iterator, validation, serialization"
 ---
 
 # Examples

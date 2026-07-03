@@ -3,13 +3,15 @@ title: Validators API
 titleTemplate: "Validators API | env.zig"
 description: Built-in validators API reference for env.zig configuration validation.
 head:
-  - meta:
-      - property: og:title
-        content: "Validators API | env.zig"
-      - meta: description
-        content: Built-in validators API reference for env.zig.
-      - name: keywords
-        content: "zig, env, validators, required, boolean, integer, float, url, email, port"
+  - - meta
+    - property: og:title
+      content: "Validators API | env.zig"
+  - - meta
+    - name: description
+      content: Built-in validators API reference for env.zig.
+  - - meta
+    - name: keywords
+      content: "zig, env, validators, required, boolean, integer, float, url, email, port"
 ---
 
 # Validators API Reference

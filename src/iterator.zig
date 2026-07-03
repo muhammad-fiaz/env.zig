@@ -46,7 +46,7 @@ pub const Iterator = struct {
         allocator: std.mem.Allocator,
         predicate: *const fn (Entry) bool,
     ) ![]Entry {
-        var result: std.ArrayListUnmanaged(Entry) = .empty;
+        var result: std.ArrayList(Entry) = .empty;
         errdefer result.deinit(allocator);
 
         while (self.next()) |entry| {

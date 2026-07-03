@@ -3,13 +3,15 @@ title: Interpolation Example
 titleTemplate: "Interpolation Example | env.zig"
 description: Working example of variable interpolation in env.zig with ${VAR} syntax and circular detection.
 head:
-  - meta:
-      - property: og:title
-        content: "Interpolation Example | env.zig"
-      - meta: description
-        content: Working example of variable interpolation in env.zig.
-      - name: keywords
-        content: "zig, env, interpolation, ${VAR}, example, env.zig"
+  - - meta
+    - property: og:title
+      content: "Interpolation Example | env.zig"
+  - - meta
+    - name: description
+      content: Working example of variable interpolation in env.zig.
+  - - meta
+    - name: keywords
+      content: "zig, env, interpolation, ${VAR}, example, env.zig"
 ---
 
 # Interpolation Example

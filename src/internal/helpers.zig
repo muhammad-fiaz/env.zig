@@ -29,7 +29,7 @@ pub fn isValidKey(key: []const u8) bool {
 
 /// Unescape a value string, processing escape sequences.
 pub fn unescape(allocator: std.mem.Allocator, input: []const u8) ![]const u8 {
-    var result: std.ArrayListUnmanaged(u8) = .empty;
+    var result: std.ArrayList(u8) = .empty;
     errdefer result.deinit(allocator);
 
     var i: usize = 0;

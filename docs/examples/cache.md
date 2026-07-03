@@ -3,13 +3,15 @@ title: Cache Example
 titleTemplate: "Cache Example | env.zig"
 description: Working example of the built-in cache in env.zig for storing parsed values separately from environment entries.
 head:
-  - meta:
-      - property: og:title
-        content: "Cache Example | env.zig"
-      - meta: description
-        content: Working example of the built-in cache in env.zig.
-      - name: keywords
-        content: "zig, env, cache, storage, key-value, example, env.zig"
+  - - meta
+    - property: og:title
+      content: "Cache Example | env.zig"
+  - - meta
+    - name: description
+      content: Working example of the built-in cache in env.zig.
+  - - meta
+    - name: keywords
+      content: "zig, env, cache, storage, key-value, example, env.zig"
 ---
 
 # Cache Example
