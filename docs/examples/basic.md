@@ -1,6 +1,5 @@
 ---
 title: Basic Example
-titleTemplate: "Basic Example | env.zig"
 description: Working example of basic env.zig usage with set/get, type-safe accessors, iteration, and serialization.
 head:
   - - meta

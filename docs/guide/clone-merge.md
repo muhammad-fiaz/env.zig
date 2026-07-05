@@ -1,6 +1,5 @@
 ---
 title: Clone & Merge
-titleTemplate: "Clone & Merge | env.zig"
 description: Learn how to clone and merge env.zig instances for independent copies and default value patterns.
 head:
   - - meta

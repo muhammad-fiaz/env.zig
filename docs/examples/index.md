@@ -1,6 +1,5 @@
 ---
 title: Examples
-titleTemplate: "Examples | env.zig"
 description: Complete examples for env.zig — basic usage, interpolation, clone & merge, cache, iterator, validation, and serialization.
 head:
   - - meta

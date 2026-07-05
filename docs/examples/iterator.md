@@ -1,6 +1,5 @@
 ---
 title: Iterator Example
-titleTemplate: "Iterator Example | env.zig"
 description: Working example of the iterator API in env.zig with peek, skip, reset, and collect operations.
 head:
   - - meta

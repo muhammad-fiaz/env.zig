@@ -1,6 +1,5 @@
 ---
 title: Serialization
-titleTemplate: "Serialization | env.zig"
 description: Serialize env.zig configurations back to .env format with sorting and quoting.
 head:
   - - meta

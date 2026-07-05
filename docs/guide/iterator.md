@@ -1,6 +1,5 @@
 ---
 title: Iterator
-titleTemplate: "Iterator | env.zig"
 description: Learn how to iterate over env.zig key-value pairs with peek, skip, reset, and collect operations.
 head:
   - - meta

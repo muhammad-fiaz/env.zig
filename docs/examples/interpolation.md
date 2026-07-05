@@ -1,6 +1,5 @@
 ---
 title: Interpolation Example
-titleTemplate: "Interpolation Example | env.zig"
 description: Working example of variable interpolation in env.zig with ${VAR} syntax and circular detection.
 head:
   - - meta

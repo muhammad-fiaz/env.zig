@@ -1,6 +1,5 @@
 ---
 title: Config API
-titleTemplate: "Config API | env.zig"
 description: Configuration options API for env.zig parsing, interpolation, and serialization.
 head:
   - - meta

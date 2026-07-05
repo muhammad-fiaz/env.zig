@@ -1,6 +1,5 @@
 ---
 title: Comparison
-titleTemplate: "Comparison | env.zig"
 description: Compare env.zig with Zig's built-in std.process.Environ - features, use cases, and API differences.
 head:
   - - meta

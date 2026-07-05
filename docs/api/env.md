@@ -1,6 +1,5 @@
 ---
 title: Env API
-titleTemplate: "Env API | env.zig"
 description: Full API reference for the Env struct — parsing, reading, writing, updating, and deleting .env entries in env.zig.
 head:
   - - meta

@@ -1,6 +1,5 @@
 ---
 title: Configuration
-titleTemplate: "Configuration | env.zig"
 description: Configure env.zig parsing, interpolation, and serialization behavior with the Config struct.
 head:
   - - meta

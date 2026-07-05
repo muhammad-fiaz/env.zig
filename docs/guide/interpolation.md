@@ -1,6 +1,5 @@
 ---
 title: Interpolation
-titleTemplate: "Interpolation | env.zig"
 description: Learn how to use variable interpolation in env.zig to reference other .env variables with ${VAR} syntax.
 head:
   - - meta

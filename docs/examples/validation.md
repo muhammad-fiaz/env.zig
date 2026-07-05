@@ -1,6 +1,5 @@
 ---
 title: Validation Example
-titleTemplate: "Validation Example | env.zig"
 description: Schema validation example for env.zig with built-in validators, errors, and warnings.
 head:
   - - meta

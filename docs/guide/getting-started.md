@@ -1,6 +1,5 @@
 ---
 title: Getting Started
-titleTemplate: "Getting Started | env.zig"
 description: Install and set up env.zig — a simple and fast .env parsing and reading library for Zig with write, update, delete, interpolation, validation, and serialization.
 head:
   - - meta

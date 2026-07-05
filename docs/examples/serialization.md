@@ -1,6 +1,5 @@
 ---
 title: Serialization Example
-titleTemplate: "Serialization Example | env.zig"
 description: Serialization example for env.zig — write configurations back to .env format.
 head:
   - - meta

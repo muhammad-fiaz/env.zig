@@ -1,6 +1,5 @@
 ---
 title: Validators API
-titleTemplate: "Validators API | env.zig"
 description: Built-in validators API reference for env.zig configuration validation.
 head:
   - - meta

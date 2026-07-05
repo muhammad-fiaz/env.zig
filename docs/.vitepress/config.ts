@@ -38,6 +38,7 @@ export default defineConfig({
     ["meta", { name: "description", content: SITE_DESCRIPTION }],
     ["meta", { name: "keywords", content: KEYWORDS }],
     ["meta", { name: "author", content: "Muhammad Fiaz" }],
+    ["meta", { name: "publisher", content: "Muhammad Fiaz" }],
     ["meta", { name: "robots", content: "index, follow" }],
     ["meta", { name: "language", content: "English" }],
     ["meta", { name: "revisit-after", content: "7 days" }],
@@ -186,13 +187,9 @@ gtag('config', '${GA_ID}');`,
       "image": `${SITE_URL}/cover.png`,
       "author": authorSchema,
       "publisher": {
-        "@type": "Organization",
-        "name": SITE_NAME,
-        "url": SITE_URL,
-        "logo": {
-          "@type": "ImageObject",
-          "url": `${SITE_URL}/logo.png`
-        }
+        "@type": "Person",
+        "name": "Muhammad Fiaz",
+        "url": "https://muhammadfiaz.com"
       }
     };
 

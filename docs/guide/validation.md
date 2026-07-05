@@ -1,6 +1,5 @@
 ---
 title: Validation
-titleTemplate: "Validation | env.zig"
 description: Schema validation and built-in validators for env.zig configuration with error and warning support.
 head:
   - - meta

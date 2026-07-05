@@ -1,6 +1,5 @@
 ---
 title: Cache
-titleTemplate: "Cache | env.zig"
 description: Learn how to use the built-in cache in env.zig for storing parsed key-value pairs separately from environment entries.
 head:
   - - meta

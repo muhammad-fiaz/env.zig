@@ -1,6 +1,5 @@
 ---
 title: Cache Example
-titleTemplate: "Cache Example | env.zig"
 description: Working example of the built-in cache in env.zig for storing parsed values separately from environment entries.
 head:
   - - meta

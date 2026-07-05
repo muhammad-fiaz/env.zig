@@ -1,7 +1,6 @@
 ---
 layout: home
 title: env.zig
-titleTemplate: A Simple and Fast Env Parsing and Reading Library for Zig
 description: A simple and fast .env parsing and reading library for Zig with write support, variable interpolation, schema validation, and serialization.
 
 hero:

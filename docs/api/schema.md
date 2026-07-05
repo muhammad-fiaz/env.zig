@@ -1,6 +1,5 @@
 ---
 title: Schema API
-titleTemplate: "Schema API | env.zig"
 description: Schema-based validation API for env.zig configurations.
 head:
   - - meta
