@@ -9,7 +9,7 @@ Covers `get`/`getBool`/`getInt`/`getFloat`/`getEnum`/`getList` with `getOs`/`get
 
 ## Source
 
-<<< @/examples/type_safe.zig
+<<< ../../examples/type_safe.zig
 
 ## Running
 

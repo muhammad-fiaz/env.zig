@@ -9,7 +9,7 @@ Demonstrates OS env bridging, temporary scopes (`$env`), and interpolation with 
 
 ## Source
 
-<<< @/examples/os_env.zig
+<<< ../../examples/os_env.zig
 
 ## Running
 
