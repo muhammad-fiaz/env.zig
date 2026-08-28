@@ -9,13 +9,12 @@
 <a href="https://github.com/muhammad-fiaz/env.zig"><img src="https://img.shields.io/github/license/muhammad-fiaz/env.zig" alt="License"></a>
 <a href="https://github.com/muhammad-fiaz/env.zig/actions/workflows/ci.yml"><img src="https://github.com/muhammad-fiaz/env.zig/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
 <img src="https://img.shields.io/badge/platforms-linux%20%7C%20windows%20%7C%20macos-blue" alt="Supported Platforms">
-<a href="https://github.com/muhammad-fiaz/env.zig/actions/workflows/github-code-scanning/codeql"><img src="https://github.com/muhammad-fiaz/env.zig/actions/workflows/github-code-scanning/codeql/badge.svg" alt="CodeQL"></a>
 <a href="https://github.com/muhammad-fiaz/env.zig/releases/latest"><img src="https://img.shields.io/github/v/release/muhammad-fiaz/env.zig?label=Latest%20Release&style=flat-square" alt="Latest Release"></a>
 <a href="https://pay.muhammadfiaz.com"><img src="https://img.shields.io/badge/Sponsor-pay.muhammadfiaz.com-ff69b4?style=flat&logo=heart" alt="Sponsor"></a>
 <a href="https://github.com/sponsors/muhammad-fiaz"><img src="https://img.shields.io/badge/Sponsor-GitHub-pink?style=social&logo=github" alt="GitHub Sponsors"></a>
 <a href="https://hits.sh/muhammad-fiaz/env.zig/"><img src="https://hits.sh/muhammad-fiaz/env.zig.svg?label=Visitors&extraCount=0&color=green" alt="Repo Visitors"></a>
 
-<p><em>A production-grade, high-performance runtime <code>.env</code> library for Zig — parsing, interpolation, validation, and OS environment.</em></p>
+<p><em>A production-grade, high-performance runtime .env library for Zig.</em></p>
 
 <b><a href="https://muhammad-fiaz.github.io/env.zig/">Documentation</a> |
 <a href="https://muhammad-fiaz.github.io/env.zig/api/env">API Reference</a> |
