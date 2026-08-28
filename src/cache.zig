@@ -1,17 +1,14 @@
 const std = @import("std");
 
-/// A simple cache for parsed .env values.
+/// Efficient cache for parsed .env values. Reuses `std.StringHashMap` directly
+/// without wrapper struct to avoid extra indirection and allocation.
 pub const Cache = struct {
-    map: std.StringHashMap(CacheEntry),
+    map: std.StringHashMap([]const u8),
     allocator: std.mem.Allocator,
-
-    const CacheEntry = struct {
-        value: []const u8,
-    };
 
     pub fn init(allocator: std.mem.Allocator) Cache {
         return .{
-            .map = std.StringHashMap(CacheEntry).init(allocator),
+            .map = std.StringHashMap([]const u8).init(allocator),
             .allocator = allocator,
         };
     }
@@ -20,12 +17,12 @@ pub const Cache = struct {
         var it = self.map.iterator();
         while (it.next()) |entry| {
             self.allocator.free(entry.key_ptr.*);
-            self.allocator.free(entry.value_ptr.*.value);
+            self.allocator.free(entry.value_ptr.*);
         }
         self.map.deinit();
     }
 
-    /// Put a value into the cache.
+    /// Put a value into the cache — overwrites existing key efficiently.
     pub fn put(self: *Cache, key: []const u8, value: []const u8) !void {
         const owned_key = try self.allocator.dupe(u8, key);
         errdefer self.allocator.free(owned_key);
@@ -34,44 +31,38 @@ pub const Cache = struct {
 
         if (self.map.fetchRemove(key)) |kv| {
             self.allocator.free(kv.key);
-            self.allocator.free(kv.value.value);
+            self.allocator.free(kv.value);
         }
-
-        try self.map.put(owned_key, .{ .value = owned_value });
+        try self.map.put(owned_key, owned_value);
     }
 
-    /// Get a value from the cache.
+    /// Get a value from the cache. Returned slice is owned by cache.
     pub fn get(self: *const Cache, key: []const u8) ?[]const u8 {
-        const entry = self.map.get(key) orelse return null;
-        return entry.value;
+        return self.map.get(key);
     }
 
-    /// Check if a key exists in the cache.
     pub fn contains(self: *const Cache, key: []const u8) bool {
         return self.map.contains(key);
     }
 
-    /// Remove a key from the cache.
     pub fn remove(self: *Cache, key: []const u8) bool {
         if (self.map.fetchRemove(key)) |kv| {
             self.allocator.free(kv.key);
-            self.allocator.free(kv.value.value);
+            self.allocator.free(kv.value);
             return true;
         }
         return false;
     }
 
-    /// Clear all entries from the cache.
     pub fn clear(self: *Cache) void {
         var it = self.map.iterator();
         while (it.next()) |entry| {
             self.allocator.free(entry.key_ptr.*);
-            self.allocator.free(entry.value_ptr.*.value);
+            self.allocator.free(entry.value_ptr.*);
         }
         self.map.clearRetainingCapacity();
     }
 
-    /// Return the number of entries in the cache.
     pub fn count(self: *const Cache) usize {
         return self.map.count();
     }

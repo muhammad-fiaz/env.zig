@@ -1,6 +1,6 @@
 ---
 title: Comparison
-description: Compare env.zig with Zig's built-in std.process.Environ - features, use cases, and API differences.
+description: Compare env.zig with Zig's built-in std.process.Environ — full feature matrix for parsing, interpolation, OS env, and validation.
 head:
   - - meta
     - property: og:title
@@ -10,164 +10,103 @@ head:
       content: Compare env.zig with Zig's built-in std.process.Environ.
   - - meta
     - name: keywords
-      content: "zig, env, comparison, std.process.Environ, built-in, features"
+      content: "zig, env, comparison, std.process.Environ, built-in, features, os env, interpolation"
 ---
 
 # env.zig vs Zig Built-in Environment Handling
 
-This page compares `env.zig` with Zig's built-in `std.process.Environ` API to help you choose the right tool for your use case.
+This page compares `env.zig` with Zig's built-in `std.process.Environ` API to help you choose the right tool. `env.zig` deliberately reuses `std` primitives (`std.process.Environ`, `std.Io`, `std.unicode.Wtf8/Wtf16`, `std.mem`) and extends them to production-grade `.env` management.
 
 ## Overview
 
-Zig's standard library provides `std.process.Environ` for accessing **OS process environment variables**. `env.zig` is a **runtime `.env` file library** that parses, validates, and manages configuration from `.env` files.
+Zig's `std.process.Environ` provides **raw OS process environment** access. `env.zig` is a **runtime `.env` + OS bridge** that parses, interpolates, validates, and manages configuration from `.env` files *and* the OS on **Windows, Linux, macOS (x86, x64, aarch64, 32-bit)** with single codebase.
 
-They serve different purposes and can be used together.
+They are complementary — most apps use both.
 
 ## Feature Comparison
 
 | Feature | `std.process.Environ` | `env.zig` |
 |---------|:---------------------:|:---------:|
-| **Source** | OS process env vars | `.env` files + manual entries |
-| **File Parsing** | No | Yes (`.env` format) |
-| **Variable Interpolation** | No | Yes (`${VAR}` syntax) |
-| **Schema Validation** | No | Yes (built-in + custom validators) |
-| **Type-Safe Accessors** | No (raw `[]const u8`) | Yes (`getBool`, `getInt`, `getFloat`, `getEnum`, `getList`) |
-| **Write & Update** | `put()` only | `set()` + `merge()` |
-| **Delete** | `swapRemove()` / `orderedRemove()` | `remove()` + `clear()` |
-| **Insertion Order** | OS-dependent | Guaranteed insertion order |
-| **Serialization** | No | Yes (back to `.env` format) |
-| **Cache** | No | Yes (built-in key-value cache) |
-| **Config Options** | OS-specific | 15+ options (strict, trim, interpolate, etc.) |
-| **Case Sensitivity** | Windows: case-insensitive | Always case-sensitive |
+| **Source** | OS process env vars | `.env` files + OS env + manual entries |
+| **File Parsing** | No | Yes (`.env`, `export` aware, quotes, inline comments) |
+| **Variable Interpolation** | No | Yes (`${VAR}`, `$VAR`, `${VAR:-d}`, `${VAR:+a}`, `${VAR:?e}`, nested, `$env:VAR`) |
+| **OS Fallback** | N/A | Yes (Env → `OsEnv.get` → `getenv`/`GetEnvironmentVariableW`) |
+| **Shell Compatibility** | N/A | `export KEY=val`, `$env:` prefix |
+| **Schema Validation** | No | Yes (built-in + custom) |
+| **Type-Safe Accessors** | No (raw `[]const u8`) | Yes (`getBool`, `getInt`, `getFloat`, `getEnum`, `getList`, `getOs`) |
+| **Write & Update** | `put()` only | `set()` / `setOs()` + `merge()` |
+| **Delete** | `swapRemove()` / `orderedRemove()` | `remove()` / `unsetOs()` + `clear()` |
+| **Insertion Order** | OS-dependent | Guaranteed |
+| **Serialization** | No | Yes (quoting via `helpers.needsQuoting`, `helpers.escapedForChar`) |
+| **Cache** | No | Yes |
+| **Iterator** | Map iterator | `next`/`peek`/`reset`/`skip`/`remaining`/`collect` |
+| **Config Options** | OS-specific | 15+ (`strict`, `trim`, `interpolate`, `export_to_env`, `sort_keys`, etc.) |
+| **Case Sensitivity** | Windows: case-insensitive | Env: case-sensitive; OS: Windows-insensitive via `Wyhash`/`eqlIgnoreCaseWtf8` |
 | **Multiple Files** | N/A | Yes (`loadMany`) |
-| **Override Control** | N/A | Yes (`override` config) |
-| **Strict Mode** | N/A | Yes (fail on syntax errors) |
-| **File I/O** | No | Yes (load/save `.env` files) |
+| **Override Control** | N/A | Yes (`override`) |
+| **Strict Mode** | N/A | Yes |
+| **File I/O** | No | Yes (`load`/`save`) |
+| **Temporary Scopes** | No | Yes (`Scope`/`EnvScope`/`Snapshot`/`with`) |
+| **OS Direct API** | `Map.get/put` only | `OsEnv.get/set/unset/getAll/snapshot` |
+| **Environ.Map Bridge** | `createMap` only | `toEnvironMap` / `applyToEnvironMap` |
 | **Clone/Merge** | `clone()` only | `clone()` + `merge()` |
 | **Allocator-Aware** | Yes | Yes |
+| **Null Handling** | N/A | `""` preserved in Env; Windows empty deletes on OS (doc’d) |
 
 ## When to Use `std.process.Environ`
 
-Use Zig's built-in `Environ` when you need to:
-
-- Read OS environment variables (`HOSTNAME`, `PATH`, `HOME`, etc.)
-- Pass environment to child processes
-- Access process-level configuration
+Use Zig's built-in when you only need raw OS env and child-process `environ_map`:
 
 ```zig
-const std = @import("std");
-const Io = std.Io;
-
-pub fn main(init: std.process.Init) !void {
-    const io = init.io;
-    const allocator = init.gpa;
-
-    var env_map = std.process.Environ.Map.init(allocator);
-    defer env_map.deinit();
-
-    if (env_map.get("HOME")) |home| {
-        var stdout_buffer: [0x100]u8 = undefined;
-        var stdout_writer = Io.File.stdout().writer(io, &stdout_buffer);
-        const stdout = &stdout_writer.interface;
-        try stdout.print("Home: {s}\n", .{home});
-        try stdout.flush();
-    }
-}
+var env_map = std.process.Environ.Map.init(allocator);
+defer env_map.deinit();
+// ... Map.get/put, then spawn with .environ_map = &env_map
 ```
 
 ## When to Use `env.zig`
 
-Use `env.zig` when you need to:
-
-- Parse `.env` files for application configuration
-- Use variable interpolation in config values
-- Validate configuration against a schema
-- Get type-safe access to config values
-- Write, update, or delete config entries
-- Preserve key insertion order
-- Serialize config back to `.env` format
-- Support multiple config files with override control
+Use `env.zig` when you need `.env` parsing, `export` compat, shell-like interpolation with OS fallback, validation, type-safe access, temporary scopes, or `Environ.Map` bridging:
 
 ```zig
-const std = @import("std");
-const Io = std.Io;
-const env_mod = @import("env");
-
-pub fn main(init: std.process.Init) !void {
-    const io = init.io;
-    const allocator = init.gpa;
-
-    var env = env_mod.Env.init(allocator, .{ .interpolate = true });
-    defer env.deinit();
-
-    try env.load(".env");
-
-    // Read
-    const port = env.getInt(u16, "PORT") orelse 3000;
-
-    // Write
-    try env.set("NEW_KEY", "new_value");
-
-    // Update
-    try env.set("PORT", "9090");
-
-    // Delete
-    _ = env.remove("DEBUG");
-
-    var stdout_buffer: [0x100]u8 = undefined;
-    var stdout_writer = Io.File.stdout().writer(io, &stdout_buffer);
-    const stdout = &stdout_writer.interface;
-    try stdout.print("port={d}\n", .{port});
-    try stdout.flush();
+var env = env_mod.Env.init(allocator, .{ .interpolate = true });
+defer env.deinit();
+try env.load(".env");
+try env.loadOsEnvWithPrefix("APP_"); // APP_PORT -> PORT
+const port = env.getInt(u16, "PORT") orelse 3000;
+try env.set("NEW_KEY", "value");
+_ = env.remove("DEBUG");
+{
+    var scope = env_mod.Scope.init(allocator);
+    defer scope.deinit();
+    try scope.set("TMP", "temp");
 }
 ```
 
-## Using Both Together
-
-You can combine both for a complete configuration strategy:
+## Using Both Together — 12-Factor
 
 ```zig
-const std = @import("std");
-const Io = std.Io;
-const env_mod = @import("env");
-
-pub fn main(init: std.process.Init) !void {
-    const io = init.io;
-    const allocator = init.gpa;
-
-    // Load app config from .env file
-    var app_env = env_mod.Env.init(allocator, .{});
-    defer app_env.deinit();
-    try app_env.load(".env");
-
-    // Also read OS env vars for secrets
-    var env_map = std.process.Environ.Map.init(allocator);
-    defer env_map.deinit();
-
-    // OS env vars override .env file (12-factor app pattern)
-    const db_url = env_map.get("DATABASE_URL") orelse
-        app_env.get("DATABASE_URL") orelse
-        "postgres://localhost:5432/default";
-
-    var stdout_buffer: [0x100]u8 = undefined;
-    var stdout_writer = Io.File.stdout().writer(io, &stdout_buffer);
-    const stdout = &stdout_writer.interface;
-    try stdout.print("DB_URL={s}\n", .{db_url});
-    try stdout.flush();
-}
+var app_env = env_mod.Env.init(allocator, .{});
+defer app_env.deinit();
+try app_env.load(".env");
+try app_env.loadOsEnvIfMissing(); // OS fills missing only
+// Or: Env first, then OS fallback per-key:
+const db_url = app_env.getOs("DATABASE_URL") orelse "postgres://localhost/default";
+// Or push Env to OS for children:
+try app_env.exportToOsEnv();
+var map = try app_env.toEnvironMap(allocator);
+defer map.deinit();
+// spawn with map
 ```
 
 ## Summary
 
 | Use Case | Recommended |
 |----------|-------------|
-| Reading OS environment variables | `std.process.Environ` |
-| Parsing `.env` files | `env.zig` |
-| Variable interpolation | `env.zig` |
+| Raw OS read | `std.process.Environ` or `env.zig` `OsEnv` |
+| Parsing `.env` / `export` | `env.zig` |
+| Interpolation / defaults / `$env:` | `env.zig` |
 | Schema validation | `env.zig` |
-| Type-safe config access | `env.zig` |
-| Writing/updating config entries | `env.zig` |
-| Deleting config entries | `env.zig` |
-| Child process env passing | `std.process.Environ` |
-| WASI/WASM env access | `std.process.Environ` |
-| Application configuration | `env.zig` |
+| Type-safe access | `env.zig` |
+| Scoped `$env` for tests | `env.zig` `Scope`/`EnvScope`/`Snapshot` |
+| Child `environ_map` | `env.zig` `toEnvironMap` or `std.process.Environ` |
+| WASI/WASM | `std.process.Environ` |

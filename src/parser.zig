@@ -80,15 +80,36 @@ pub fn parse(
     var lexer = Lexer.init(source, options.config);
 
     while (true) {
-        const tok = lexer.next();
+        var tok = lexer.next();
         switch (tok.type) {
             .eof => break,
             .newline => continue,
             .comment => continue,
             .whitespace => continue,
             .key => {
-                const key_text = tok.slice;
-                const key_line = tok.line;
+                var key_text = tok.slice;
+                var key_line = tok.line;
+                // Handle `export KEY=value` prefix (shell compatibility)
+                if (std.mem.eql(u8, key_text, "export")) {
+                    var nxt = lexer.next();
+                    while (nxt.type == .whitespace) nxt = lexer.next();
+                    if (nxt.type != .key) {
+                        if (nxt.type == .eof or nxt.type == .newline or nxt.type == .comment) continue;
+                        try addDiagnostic(allocator, &result, .{
+                            .kind = .parse_error,
+                            .file = options.file_path,
+                            .line = nxt.line,
+                            .column = nxt.column,
+                            .explanation = "expected key after 'export'",
+                        });
+                        if (options.config.strict) return error.ParseError;
+                        skipToNewline(&lexer);
+                        continue;
+                    }
+                    key_text = nxt.slice;
+                    key_line = nxt.line;
+                    tok = nxt;
+                }
 
                 if (!helpers.isValidKey(key_text)) {
                     try addDiagnostic(allocator, &result, .{
@@ -126,7 +147,7 @@ pub fn parse(
                 const val_tok = lexer.next();
                 var value: []const u8 = switch (val_tok.type) {
                     .value => val_tok.slice,
-                    .quoted_value => try processEscapes(allocator, removeQuotes(val_tok.slice, '"')),
+                    .quoted_value => try helpers.unescape(allocator, removeQuotes(val_tok.slice, '"')),
                     .single_quoted_value => removeQuotes(val_tok.slice, '\''),
                     .backtick_quoted_value => removeQuotes(val_tok.slice, '`'),
                     .interpolation => blk: {
@@ -154,7 +175,7 @@ pub fn parse(
                             .file = options.file_path,
                             .line = val_tok.line,
                             .column = val_tok.column,
-                            .token = try helpers.dupe(allocator, val_tok.slice),
+                            .token = val_tok.slice,
                             .explanation = "unexpected token after '='",
                         });
                         if (options.config.strict) return error.ParseError;
@@ -164,7 +185,7 @@ pub fn parse(
                 };
 
                 if (options.config.trim) {
-                    value = helpers.trim(value);
+                    value = std.mem.trim(u8, value, " \t\r\n");
                 }
 
                 if (value.len == 0 and !options.config.allow_empty) {
@@ -173,16 +194,20 @@ pub fn parse(
                         .file = options.file_path,
                         .line = key_line,
                         .explanation = "empty value not allowed",
-                        .suggestion = try helpers.dupe(allocator, "set a value or use allow_empty = true"),
+                        .suggestion = "set a value or use allow_empty = true",
                     });
                     if (options.config.strict) return error.ParseError;
-                    skipToNewline(&lexer);
+                    // Value already consumed (newline/eof), no need to skip — just continue to next entry
+                    // Free allocated value if needed
+                    if (val_tok.type == .interpolation or val_tok.type == .quoted_value) {
+                        allocator.free(value);
+                    }
                     continue;
                 }
 
                 const entry = Entry{
-                    .key = try helpers.dupe(allocator, key_text),
-                    .value = try helpers.dupe(allocator, value),
+                    .key = try allocator.dupe(u8, key_text),
+                    .value = try allocator.dupe(u8, value),
                     .line = key_line,
                 };
 
@@ -214,9 +239,9 @@ fn addDiagnostic(
     diag: Diagnostic,
 ) !void {
     var d = diag;
-    if (d.file) |f| d.file = try helpers.dupe(allocator, f);
-    if (d.token) |t| d.token = try helpers.dupe(allocator, t);
-    if (d.suggestion) |s| d.suggestion = try helpers.dupe(allocator, s);
+    if (d.file) |f| d.file = try allocator.dupe(u8, f);
+    if (d.token) |t| d.token = try allocator.dupe(u8, t);
+    if (d.suggestion) |s| d.suggestion = try allocator.dupe(u8, s);
     try result.errors_list.append(allocator, d);
 }
 
@@ -226,63 +251,6 @@ fn removeQuotes(slice: []const u8, quote: u8) []const u8 {
         return slice[1 .. slice.len - 1];
     }
     return slice;
-}
-
-/// Process escape sequences in a quoted value.
-/// Supports: \n, \t, \r, \\, \", \', \`
-fn processEscapes(allocator: std.mem.Allocator, slice: []const u8) ![]const u8 {
-    var result: std.ArrayList(u8) = .empty;
-    errdefer result.deinit(allocator);
-
-    var i: usize = 0;
-    while (i < slice.len) {
-        if (slice[i] == '\\' and i + 1 < slice.len) {
-            const next = slice[i + 1];
-            switch (next) {
-                'n' => {
-                    try result.append(allocator, '\n');
-                    i += 2;
-                },
-                't' => {
-                    try result.append(allocator, '\t');
-                    i += 2;
-                },
-                'r' => {
-                    try result.append(allocator, '\r');
-                    i += 2;
-                },
-                '\\' => {
-                    try result.append(allocator, '\\');
-                    i += 2;
-                },
-                '"' => {
-                    try result.append(allocator, '"');
-                    i += 2;
-                },
-                '\'' => {
-                    try result.append(allocator, '\'');
-                    i += 2;
-                },
-                '`' => {
-                    try result.append(allocator, '`');
-                    i += 2;
-                },
-                '0' => {
-                    try result.append(allocator, 0);
-                    i += 2;
-                },
-                else => {
-                    // Not a recognized escape, keep as-is
-                    try result.append(allocator, slice[i]);
-                    i += 1;
-                },
-            }
-        } else {
-            try result.append(allocator, slice[i]);
-            i += 1;
-        }
-    }
-    return try result.toOwnedSlice(allocator);
 }
 
 fn skipToNewline(lexer: *Lexer) void {

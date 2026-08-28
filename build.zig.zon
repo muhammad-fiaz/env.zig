@@ -1,9 +1,9 @@
 .{
-    .name = .env_zig,
+    .name = .env,
 
-    .version = "0.0.1",
+    .version = "0.0.2",
 
-    .fingerprint = 0xad6f111e3afff3d4,
+    .fingerprint = 0xf34542f97b00cb4c,
     .minimum_zig_version = "0.16.0",
 
     .dependencies = .{},
@@ -11,6 +11,7 @@
     .paths = .{
         "build.zig",
         "build.zig.zon",
+        "examples",
         "src",
         "LICENSE",
         "README.md",
