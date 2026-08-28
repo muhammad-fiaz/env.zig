@@ -20,7 +20,7 @@ head:
 ### Add to your project
 
 ```bash
-zig fetch --save=env https://github.com/muhammad-fiaz/env.zig/archive/refs/tags/0.0.1.tar.gz
+zig fetch https://github.com/muhammad-fiaz/env.zig/archive/refs/tags/0.0.2.tar.gz
 ```
 
 Then add to your `build.zig`:
@@ -53,14 +53,13 @@ pub fn main(init: std.process.Init) !void {
     var env = env_mod.Env.init(allocator, .{});
     defer env.deinit();
 
-    // Load from file
-    try env.load(".env");
-
+    // Load from file — handles export prefix, quotes, inline comments
+    try env.load(".env"); // supports: export HOST=localhost  # comment
     // Or parse from string
     try env.parseString("HOST=localhost\nPORT=8080\n");
 
-    // Read values with type-safe accessors
-    const host = env.get("HOST") orelse "localhost";
+    // Read values with type-safe accessors + OS fallback
+    const host = env.getOs("HOST") orelse "localhost"; // Env → OsEnv (getenv/GetEnvironmentVariableW)
     const port = env.getInt(u16, "PORT") orelse 3000;
     const debug = env.getBool("DEBUG") orelse false;
 
@@ -78,27 +77,44 @@ pub fn main(init: std.process.Init) !void {
     // Delete entries
     _ = env.remove("DEBUG");
 
+    // OS bridging (Windows/Linux/macOS via std.c / kernel32)
+    try env.loadOsEnvIfMissing(); // import OS vars only if missing
+    try env.loadOsEnvWithPrefix("APP_"); // APP_PORT=8080 → PORT=8080
+    try env.exportToOsEnv(); // push to process env for children
+    const with_default = env.getWithFallback("PORT", "3000");
+    const required = try env.require("DATABASE_URL");
+
+    // Temporary $env isolation for tests
+    {
+        var scope = env_mod.Scope.init(allocator);
+        defer scope.deinit();
+        try scope.set("TMP", "temporary");
+    }
+
     // Print to stdout
     var stdout_buffer: [0x100]u8 = undefined;
     var stdout_writer = Io.File.stdout().writer(io, &stdout_buffer);
     const stdout = &stdout_writer.interface;
-    try stdout.print("host={s} port={d} debug={}\n", .{ host, port, debug });
+    try stdout.print("host={s} port={d} debug={} with_default={s} required={s}\n", .{ host, port, debug, with_default, required });
     try stdout.flush();
 }
 ```
 
 ## What is a .env file?
 
-A `.env` file is a simple text file for storing environment configuration:
+A `.env` file is a simple text file for storing environment configuration (shell-compatible `export` is accepted):
 
 ```env
 # Database configuration
-DATABASE_URL=postgres://localhost:5432/mydb
+export DATABASE_URL=postgres://localhost:5432/mydb
 DATABASE_POOL_SIZE=10
 
-# Server
+# Server — interpolation with OS fallback and defaults
 HOST=0.0.0.0
-PORT=8080
+PORT=${PORT:-3000}
+GREETING=${GREETING:-hello} world
+FROM_OS=${HOME}            # falls back to OS env
+ENV_STYLE=$env:HOME        # PowerShell $env: prefix
 
 # Features
 DEBUG=true
@@ -204,8 +220,14 @@ var env = env_mod.Env.init(allocator, .{
 ## Reading Values
 
 ```zig
-// Raw string
+// Raw string (Env only)
 const value = env.get("KEY");
+
+// OS-aware (Env → OS fallback via OsEnv.get / getenv / GetEnvironmentVariableW)
+const value2 = env.getOs("KEY"); // ?[]const u8
+const with_default = env.getWithFallback("PORT", "3000");
+const required = try env.require("API_KEY"); // error.MissingRequired
+const is_os = env.containsOs("HOME");
 
 // Typed accessors
 const port = env.getInt(u16, "PORT");       // ?u16
@@ -218,6 +240,11 @@ const hosts = env.getList(allocator, "HOSTS", ','); // ?[][]const u8
 
 // Check existence
 if (env.contains("KEY")) { ... }
+if (env.containsOs("KEY")) { ... }
+
+// Direct OS (cross-platform)
+const home = env_mod.OsEnv.get("HOME"); // thread-local TLS on Windows
+const home_alloc = try env_mod.OsEnv.getAlloc(allocator, "HOME");
 ```
 
 ## Writing & Updating Values

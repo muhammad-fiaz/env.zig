@@ -1,6 +1,9 @@
 const std = @import("std");
 const config = @import("config.zig");
-const Serializer = @import("serializer.zig").Serializer;
+const serializer_mod = @import("serializer.zig");
+const Serializer = serializer_mod.Serializer;
+const SerEntry = serializer_mod.SerEntry;
+const helpers = @import("internal/helpers.zig");
 
 const Config = config.Config;
 
@@ -10,7 +13,7 @@ pub const Writer = struct {
     pub fn writeToFile(
         allocator: std.mem.Allocator,
         path: []const u8,
-        entries: []const struct { key: []const u8, value: []const u8 },
+        entries: []const SerEntry,
         cfg: Config,
     ) !void {
         const content = try Serializer.serialize(allocator, entries, cfg);
@@ -29,7 +32,7 @@ pub const Writer = struct {
     /// Write entries to a provided buffer and return the written slice.
     pub fn writeToBuffer(
         buf: []u8,
-        entries: []const struct { key: []const u8, value: []const u8 },
+        entries: []const SerEntry,
         cfg: Config,
     ) ![]const u8 {
         var pos: usize = 0;
@@ -42,51 +45,19 @@ pub const Writer = struct {
             if (pos >= buf.len) return error.NoSpaceLeft;
             buf[pos] = '=';
             pos += 1;
-            if (cfg.quote_spaces and
-                (std.mem.indexOf(u8, entry.value, " ") != null or
-                    std.mem.indexOf(u8, entry.value, "#") != null or
-                    entry.value.len == 0))
-            {
+            if (helpers.needsQuoting(entry.value, cfg.quote_spaces)) {
                 if (pos >= buf.len) return error.NoSpaceLeft;
                 buf[pos] = '"';
                 pos += 1;
                 for (entry.value) |ch| {
-                    switch (ch) {
-                        '"' => {
-                            if (pos + 1 >= buf.len) return error.NoSpaceLeft;
-                            buf[pos] = '\\';
-                            buf[pos + 1] = '"';
-                            pos += 2;
-                        },
-                        '\\' => {
-                            if (pos + 1 >= buf.len) return error.NoSpaceLeft;
-                            buf[pos] = '\\';
-                            buf[pos + 1] = '\\';
-                            pos += 2;
-                        },
-                        '\n' => {
-                            if (pos + 1 >= buf.len) return error.NoSpaceLeft;
-                            buf[pos] = '\\';
-                            buf[pos + 1] = 'n';
-                            pos += 2;
-                        },
-                        '\r' => {
-                            if (pos + 1 >= buf.len) return error.NoSpaceLeft;
-                            buf[pos] = '\\';
-                            buf[pos + 1] = 'r';
-                            pos += 2;
-                        },
-                        '\t' => {
-                            if (pos + 1 >= buf.len) return error.NoSpaceLeft;
-                            buf[pos] = '\\';
-                            buf[pos + 1] = 't';
-                            pos += 2;
-                        },
-                        else => {
-                            if (pos >= buf.len) return error.NoSpaceLeft;
-                            buf[pos] = ch;
-                            pos += 1;
-                        },
+                    if (helpers.escapedForChar(ch)) |esc| {
+                        if (pos + esc.len > buf.len) return error.NoSpaceLeft;
+                        @memcpy(buf[pos .. pos + esc.len], esc);
+                        pos += esc.len;
+                    } else {
+                        if (pos >= buf.len) return error.NoSpaceLeft;
+                        buf[pos] = ch;
+                        pos += 1;
                     }
                 }
                 if (pos >= buf.len) return error.NoSpaceLeft;
@@ -110,7 +81,7 @@ pub const Writer = struct {
 test "writeToBuffer" {
     var buf: [256]u8 = undefined;
 
-    const entries = [_]struct { key: []const u8, value: []const u8 }{
+    const entries = [_]SerEntry{
         .{ .key = "KEY1", .value = "value1" },
         .{ .key = "KEY2", .value = "value2" },
     };

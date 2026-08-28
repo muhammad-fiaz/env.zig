@@ -1,4 +1,5 @@
 const std = @import("std");
+const builtin = @import("builtin");
 const parser_mod = @import("parser.zig");
 const config_mod = @import("config.zig");
 const interpolation_mod = @import("interpolation.zig");
@@ -9,11 +10,16 @@ const iterator_mod = @import("iterator.zig");
 const validator_mod = @import("validator.zig");
 const schema_mod = @import("schema.zig");
 const errors = @import("errors.zig");
+const os_env_mod = @import("os_env.zig");
 
 pub const Config = config_mod.Config;
 pub const ValidationError = validator_mod.ValidationError;
 pub const schema = schema_mod;
 pub const validator = validator_mod;
+pub const OsEnv = os_env_mod.OsEnv;
+pub const Scope = os_env_mod.Scope;
+pub const Snapshot = os_env_mod.Snapshot;
+pub const os_env = os_env_mod;
 
 /// The main environment store.
 /// Owns all allocated memory. Call `deinit` to free resources.
@@ -82,14 +88,16 @@ pub const Env = struct {
             if (self.config.override or !self.entries.contains(entry.key)) {
                 const existing = self.entries.fetchRemove(entry.key);
                 if (existing) |kv| {
-                    self.allocator.free(kv.key);
+                    // Reuse existing key pointer to keep insertion_order stable
                     self.allocator.free(kv.value);
+                    const owned_value = try self.allocator.dupe(u8, entry.value);
+                    try self.entries.put(kv.key, owned_value);
+                } else {
+                    const owned_key = try self.allocator.dupe(u8, entry.key);
+                    const owned_value = try self.allocator.dupe(u8, entry.value);
+                    try self.entries.put(owned_key, owned_value);
+                    try self.insertion_order.append(self.allocator, owned_key);
                 }
-
-                const owned_key = try self.allocator.dupe(u8, entry.key);
-                const owned_value = try self.allocator.dupe(u8, entry.value);
-                try self.entries.put(owned_key, owned_value);
-                try self.insertion_order.append(self.allocator, owned_key);
             }
         }
 
@@ -130,6 +138,15 @@ pub const Env = struct {
             try self.insertion_order.append(self.allocator, owned_key);
             try self.entries.put(owned_key, owned_value);
         }
+        if (self.config.export_to_env) {
+            os_env_mod.OsEnv.set(key, value) catch {};
+        }
+    }
+
+    /// Set and also sync to OS environment (always, regardless of config).
+    pub fn setOs(self: *Env, key: []const u8, value: []const u8) !void {
+        try self.set(key, value);
+        try os_env_mod.OsEnv.set(key, value);
     }
 
     /// Get a value by key.
@@ -142,15 +159,20 @@ pub const Env = struct {
         return self.get(key);
     }
 
-    /// Get a boolean value. Accepts: true/false/yes/no/1/0/on/off.
+    /// Get a boolean value. Accepts: true/false/yes/no/1/0/on/off (case-insensitive).
     pub fn getBool(self: *const Env, key: []const u8) ?bool {
         const val = self.get(key) orelse return null;
         const v = std.mem.trim(u8, val, " \t\r\n");
-        if (std.mem.eql(u8, v, "true") or std.mem.eql(u8, v, "yes") or
-            std.mem.eql(u8, v, "1") or std.mem.eql(u8, v, "on"))
+        // Case-insensitive compare via lowercasing into small stack buffer
+        var buf: [16]u8 = undefined;
+        if (v.len > buf.len) return null;
+        for (v, 0..) |ch, i| buf[i] = std.ascii.toLower(ch);
+        const lower = buf[0..v.len];
+        if (std.mem.eql(u8, lower, "true") or std.mem.eql(u8, lower, "yes") or
+            std.mem.eql(u8, lower, "1") or std.mem.eql(u8, lower, "on"))
             return true;
-        if (std.mem.eql(u8, v, "false") or std.mem.eql(u8, v, "no") or
-            std.mem.eql(u8, v, "0") or std.mem.eql(u8, v, "off"))
+        if (std.mem.eql(u8, lower, "false") or std.mem.eql(u8, lower, "no") or
+            std.mem.eql(u8, lower, "0") or std.mem.eql(u8, lower, "off"))
             return false;
         return null;
     }
@@ -204,9 +226,19 @@ pub const Env = struct {
                     break;
                 }
             }
+            if (self.config.export_to_env) {
+                os_env_mod.OsEnv.unset(key) catch {};
+            }
             return true;
         }
         return false;
+    }
+
+    /// Remove from Env and OS env.
+    pub fn unsetOs(self: *Env, key: []const u8) bool {
+        const r = self.remove(key);
+        os_env_mod.OsEnv.unset(key) catch {};
+        return r;
     }
 
     /// Clear all entries.
@@ -296,6 +328,206 @@ pub const Env = struct {
     /// Validate entries against a schema.
     pub fn validate(self: *const Env, s: schema_mod.Schema) []ValidationError {
         return s.validate(&self.entries);
+    }
+
+    // -----------------------------------------------------------------------
+    // OS Environment Bridging (Windows / Linux / macOS)
+    // -----------------------------------------------------------------------
+
+    /// Load all current OS environment variables into this Env.
+    /// Existing keys are overwritten if `config.override` is true.
+    pub fn loadOsEnv(self: *Env) !void {
+        var all = try os_env_mod.OsEnv.getAllAlloc(self.allocator);
+        defer {
+            var it = all.iterator();
+            while (it.next()) |e| {
+                self.allocator.free(e.key_ptr.*);
+                self.allocator.free(e.value_ptr.*);
+            }
+            all.deinit();
+        }
+        var it = all.iterator();
+        while (it.next()) |e| {
+            const k = e.key_ptr.*;
+            const v = e.value_ptr.*;
+            if (self.config.override or !self.entries.contains(k)) {
+                try self.set(k, v);
+            }
+        }
+    }
+
+    /// Load OS env vars only for keys not already present (no override).
+    pub fn loadOsEnvIfMissing(self: *Env) !void {
+        var all = try os_env_mod.OsEnv.getAllAlloc(self.allocator);
+        defer {
+            var it = all.iterator();
+            while (it.next()) |e| {
+                self.allocator.free(e.key_ptr.*);
+                self.allocator.free(e.value_ptr.*);
+            }
+            all.deinit();
+        }
+        var it = all.iterator();
+        while (it.next()) |e| {
+            if (!self.contains(e.key_ptr.*)) try self.set(e.key_ptr.*, e.value_ptr.*);
+        }
+    }
+
+    /// Load OS vars filtered by prefix, stripping prefix from keys.
+    /// e.g. prefix "APP_" loads "APP_PORT" as "PORT".
+    pub fn loadOsEnvWithPrefix(self: *Env, prefix: []const u8) !void {
+        var all = try os_env_mod.OsEnv.getAllAlloc(self.allocator);
+        defer {
+            var it = all.iterator();
+            while (it.next()) |e| {
+                self.allocator.free(e.key_ptr.*);
+                self.allocator.free(e.value_ptr.*);
+            }
+            all.deinit();
+        }
+        var it = all.iterator();
+        while (it.next()) |e| {
+            const k = e.key_ptr.*;
+            if (std.mem.startsWith(u8, k, prefix)) {
+                const stripped = k[prefix.len..];
+                if (stripped.len == 0) continue;
+                if (self.config.override or !self.entries.contains(stripped)) {
+                    try self.set(stripped, e.value_ptr.*);
+                }
+            }
+        }
+    }
+
+    /// Export all Env entries to process OS environment.
+    pub fn exportToOsEnv(self: *const Env) !void {
+        for (self.insertion_order.items) |k| {
+            if (self.entries.get(k)) |v| try os_env_mod.OsEnv.set(k, v);
+        }
+    }
+
+    /// Get value checking Env first, then OS env fallback (like shell `$VAR`).
+    pub fn getOs(self: *const Env, key: []const u8) ?[]const u8 {
+        return self.get(key) orelse os_env_mod.OsEnv.get(key);
+    }
+
+    /// Get OS var directly (without checking Env store).
+    pub fn getOsEnvAlloc(self: *const Env, allocator: std.mem.Allocator, key: []const u8) !?[]u8 {
+        _ = self;
+        return try os_env_mod.OsEnv.getAlloc(allocator, key);
+    }
+
+    /// Get with fallback default (checks Env then OS then default).
+    pub fn getWithFallback(self: *const Env, key: []const u8, fallback: []const u8) []const u8 {
+        return self.getOs(key) orelse fallback;
+    }
+
+    /// Require a key, error if missing in both Env and OS.
+    pub fn require(self: *const Env, key: []const u8) ![]const u8 {
+        return self.getOs(key) orelse error.MissingRequired;
+    }
+
+    /// Get and copy OS var into Env, returning it.
+    pub fn fetchOs(self: *Env, key: []const u8) !?[]const u8 {
+        if (self.get(key)) |v| return v;
+        const os_val = os_env_mod.OsEnv.get(key) orelse return null;
+        try self.set(key, os_val);
+        return self.get(key);
+    }
+
+    /// Check if key exists in either Env or OS env.
+    pub fn containsOs(self: *const Env, key: []const u8) bool {
+        return self.contains(key) or os_env_mod.OsEnv.exists(key);
+    }
+
+    /// Convert this Env to a `std.process.Environ.Map` for spawning children.
+    /// Caller must call `map.deinit()`.
+    pub fn toEnvironMap(self: *const Env, allocator: std.mem.Allocator) !std.process.Environ.Map {
+        var map = std.process.Environ.Map.init(allocator);
+        errdefer map.deinit();
+        for (self.insertion_order.items) |k| {
+            if (self.entries.get(k)) |v| try map.put(k, v);
+        }
+        return map;
+    }
+
+    /// Merge OS environment into an existing `Environ.Map`.
+    pub fn applyToEnvironMap(self: *const Env, map: *std.process.Environ.Map) !void {
+        for (self.insertion_order.items) |k| {
+            if (self.entries.get(k)) |v| try map.put(k, v);
+        }
+    }
+
+    /// Snapshot current OS environment via Env's allocator.
+    pub fn snapshotOs(self: *const Env) !os_env_mod.Snapshot {
+        return try os_env_mod.OsEnv.snapshot(self.allocator);
+    }
+
+    // -----------------------------------------------------------------------
+    // Temporary / Scoped Env (in-memory)
+    // -----------------------------------------------------------------------
+
+    /// Scope for temporary in-memory overrides; restores on deinit.
+    pub const EnvScope = struct {
+        env: *Env,
+        saved: std.StringHashMap(?[]const u8),
+        allocator: std.mem.Allocator,
+
+        pub fn init(env: *Env) EnvScope {
+            return .{
+                .env = env,
+                .saved = std.StringHashMap(?[]const u8).init(env.allocator),
+                .allocator = env.allocator,
+            };
+        }
+
+        pub fn deinit(self: *EnvScope) void {
+            var it = self.saved.iterator();
+            while (it.next()) |e| {
+                const key = e.key_ptr.*;
+                const maybe_prev = e.value_ptr.*;
+                if (maybe_prev) |prev| {
+                    self.env.set(key, prev) catch {};
+                    self.allocator.free(prev);
+                } else {
+                    _ = self.env.remove(key);
+                }
+                self.allocator.free(key);
+            }
+            self.saved.deinit();
+        }
+
+        fn ensureSaved(self: *EnvScope, key: []const u8) !void {
+            if (self.saved.contains(key)) return;
+            const owned_key = try self.allocator.dupe(u8, key);
+            errdefer self.allocator.free(owned_key);
+            const prev = self.env.get(key);
+            const owned_val: ?[]const u8 = if (prev) |v| try self.allocator.dupe(u8, v) else null;
+            errdefer if (owned_val) |v| self.allocator.free(v);
+            try self.saved.put(owned_key, owned_val);
+        }
+
+        pub fn set(self: *EnvScope, key: []const u8, value: []const u8) !void {
+            try self.ensureSaved(key);
+            try self.env.set(key, value);
+        }
+
+        pub fn unset(self: *EnvScope, key: []const u8) !void {
+            try self.ensureSaved(key);
+            _ = self.env.remove(key);
+        }
+    };
+
+    /// Create a temporary scope for this Env.
+    pub fn scope(self: *Env) EnvScope {
+        return EnvScope.init(self);
+    }
+
+    /// Convenience: run `func` with temporary overrides, restoring afterwards.
+    pub fn withTemp(self: *Env, key: []const u8, value: []const u8, func: *const fn (*Env) anyerror!void) !void {
+        var s = self.scope();
+        defer s.deinit();
+        try s.set(key, value);
+        try func(self);
     }
 
     fn resolveInterpolation(self: *Env) !void {

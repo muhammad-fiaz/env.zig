@@ -15,25 +15,48 @@ head:
 
 # Interpolation
 
-env.zig supports `${VAR}` syntax to reference other environment variables.
+env.zig supports `${VAR}` / `$VAR` with shell-like fallbacks and OS env fallback on Windows/Linux/macOS.
 
 ## Enable Interpolation
 
 ```zig
 var env = env_mod.Env.init(allocator, .{
-    .interpolate = true,
+    .interpolate = true, // default true
 });
 ```
 
 ## Syntax
 
-Reference another variable with `${VARIABLE_NAME}`:
+| Form | Meaning |
+|------|---------|
+| `${VAR}` / `$VAR` | Value of VAR (Env first, then OS env) |
+| `${VAR:-default}` | `default` if VAR unset **or empty** |
+| `${VAR-default}` | `default` if VAR unset (empty passthrough) |
+| `${VAR:+alt}` | `alt` if VAR set **and non-empty**, else empty |
+| `${VAR+alt}` | `alt` if VAR set (even if empty), else empty |
+| `${VAR:?msg}` / `${VAR?msg}` | `msg` if VAR missing/empty (error message) |
+| `${VAR:=default}` / `${VAR=default}` | Like `:-` / `-` (assign not persisted) |
+
+Nested defaults are expanded: `${MISSING:-${FALLBACK}}`.
+
+Reference another variable:
 
 ```env
 DATABASE_HOST=localhost
 DATABASE_PORT=5432
 DATABASE_URL=postgres://${DATABASE_HOST}:${DATABASE_PORT}/mydb
+
+# OS fallback — uses $HOME from process env if not in .env
+MY_HOME=${HOME}
+MY_PATH=$PATH:/custom/bin
+
+# Defaults & alts
+PORT=${PORT:-3000}
+DEBUG_MSG=${DEBUG:+enabled}
+REQUIRED=${API_KEY:?API_KEY is required}
 ```
+
+OS fallback walks: `Env` entries → `OsEnv.get` (POSIX `getenv` / Windows `GetEnvironmentVariableW`).
 
 ## Circular Detection
 

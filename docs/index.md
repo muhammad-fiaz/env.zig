@@ -1,12 +1,12 @@
 ---
 layout: home
 title: env.zig
-description: A simple and fast .env parsing and reading library for Zig with write support, variable interpolation, schema validation, and serialization.
+description: A production-grade runtime .env library for Zig — parsing, interpolation, OS environment, validation, and serialization for Windows, Linux and macOS.
 
 hero:
   name: env.zig
-  text: Simple and Fast .env for Zig
-  tagline: Parse, read, write, update, and delete .env files with ease.
+  text: Production-Grade .env for Zig
+  tagline: Parse, interpolate, validate, and bridge OS env with one library — zero global state, allocator-aware.
   actions:
     - theme: brand
       text: Get Started
@@ -20,19 +20,27 @@ hero:
 
 features:
   - title: Parse .env Files
-    details: Load and parse .env files into type-safe key-value pairs with support for comments, quotes, and empty values.
-  - title: Read Values
-    details: Type-safe accessors for strings, booleans, integers, floats, enums, and lists with automatic parsing.
-  - title: Write and Update
-    details: Add new key-value pairs, update existing values, and overwrite entries with type-safe setters.
-  - title: Delete Entries
-    details: Remove individual keys or clear all entries while preserving memory safety.
+    details: Load and parse .env files with comments, quotes, empty values, inline comments, and export prefix.
+  - title: Type-Safe Accessors
+    details: get, getBool, getInt, getFloat, getEnum, getList with automatic parsing and OS fallback via getOs.
+  - title: Write & Update
+    details: Add, overwrite and merge entries with set / merge; optionally sync to OS env via export_to_env.
+  - title: Delete & Clear
+    details: Remove single keys or clear all entries while preserving allocator ownership and insertion order.
   - title: Variable Interpolation
-    details: Supports ${VAR} and $VAR syntax with circular dependency detection and configurable max depth.
+    details: ${VAR}, $VAR, ${VAR:-default}, ${VAR:+alt}, ${VAR:?err}, nested defaults, $env:VAR, OS fallback.
+  - title: OS Environment
+    details: Native get/set/unset, getAll, snapshot/restore and Environ.Map for child processes — Windows/Linux/macOS.
+  - title: Temporary Scopes
+    details: Scope / EnvScope / Snapshot for $env-style isolation — automatic restore on deinit, ideal for tests.
   - title: Schema Validation
-    details: Define schemas with required fields, types, and built-in validators (port, URL, email, IPv4, etc.).
+    details: Required/optional fields, 13 built-in validators (port, url, email, ipv4, etc.) and custom validators.
   - title: Serialization
-    details: Write configurations back to .env format with key sorting, value quoting, and trailing newlines.
-  - title: Modular Architecture
-    details: Parser, lexer, tokenizer, interpolation, schema, validator, serializer, writer, cache, iterator, all in separate files.
+    details: Serialize back to .env with quoting, sorting, trailing newlines — shared needsQuoting/escapedForChar.
+  - title: Insertion Order
+    details: Guaranteed order unlike std.process.Environ; stable across x86, x64, aarch64.
+  - title: Cache & Iterator
+    details: Built-in Cache and Iterator with peek, skip, reset, remaining, collect.
+  - title: Modular & Zero-Copy
+    details: Parser, lexer, interpolation, validator, serializer — pure Zig, no deps, allocator-aware.
 ---

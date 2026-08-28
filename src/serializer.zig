@@ -1,5 +1,6 @@
 const std = @import("std");
 const config = @import("config.zig");
+const helpers = @import("internal/helpers.zig");
 
 const Config = config.Config;
 
@@ -23,20 +24,13 @@ pub const Serializer = struct {
         for (entries) |entry| {
             try result.appendSlice(allocator, entry.key);
             try result.append(allocator, '=');
-            if (cfg.quote_spaces and
-                (std.mem.indexOf(u8, entry.value, " ") != null or
-                    std.mem.indexOf(u8, entry.value, "#") != null or
-                    entry.value.len == 0))
-            {
+            if (helpers.needsQuoting(entry.value, cfg.quote_spaces)) {
                 try result.append(allocator, '"');
                 for (entry.value) |ch| {
-                    switch (ch) {
-                        '"' => try result.appendSlice(allocator, "\\\""),
-                        '\\' => try result.appendSlice(allocator, "\\\\"),
-                        '\n' => try result.appendSlice(allocator, "\\n"),
-                        '\r' => try result.appendSlice(allocator, "\\r"),
-                        '\t' => try result.appendSlice(allocator, "\\t"),
-                        else => try result.append(allocator, ch),
+                    if (helpers.escapedForChar(ch)) |esc| {
+                        try result.appendSlice(allocator, esc);
+                    } else {
+                        try result.append(allocator, ch);
                     }
                 }
                 try result.append(allocator, '"');

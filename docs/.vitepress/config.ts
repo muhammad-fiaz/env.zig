@@ -4,7 +4,7 @@ import llmstxt from "vitepress-plugin-llms";
 // Site configuration
 export const SITE_URL = "https://muhammad-fiaz.github.io/env.zig";
 export const SITE_NAME = "env.zig";
-export const SITE_DESCRIPTION = "A production-grade runtime .env library for Zig with parsing, interpolation, validation, serialization, schema validation, type-safe accessors, and modular architecture.";
+export const SITE_DESCRIPTION = "A production-grade runtime .env library for Zig — parsing, interpolation with OS fallback, native OS env (Windows/Linux/macOS), temporary scopes, validation, serialization, and type-safe accessors.";
 
 // Google Analytics and Google Tag Manager IDs
 export const GA_ID = "G-6BVYCRK57P";
@@ -13,8 +13,8 @@ export const GTM_ID = "GTM-P4M9T8ZR";
 // Google AdSense Client ID
 export const ADSENSE_CLIENT_ID = "ca-pub-2040560600290490";
 
-// SEO Keywords
-export const KEYWORDS = "zig, env, dotenv, environment, configuration, .env, interpolation, validation, serialization, schema, parser, lexer, type-safe, allocator, zig 0.16";
+// SEO Keywords — covers all env features for industry search
+export const KEYWORDS = "zig, env, dotenv, environment, configuration, .env, interpolation, os env, windows, linux, macos, scope, temporary env, snapshot, validation, serialization, schema, parser, lexer, type-safe, allocator, cross-platform, aarch64, x86, 64-bit, 32-bit, zig 0.16";
 
 export default defineConfig({
   lang: "en-US",
@@ -204,7 +204,7 @@ gtag('config', '${GA_ID}');`,
           "priceCurrency": "USD"
         },
         "downloadUrl": "https://github.com/muhammad-fiaz/env.zig",
-        "softwareVersion": "0.0.1",
+        "softwareVersion": "0.0.2",
         "license": "https://opensource.org/licenses/MIT"
       });
     } else {
@@ -301,6 +301,7 @@ gtag('config', '${GA_ID}');`,
         text: "Guide",
         items: [
           { text: "Interpolation", link: "/guide/interpolation" },
+          { text: "OS Environment", link: "/guide/os-env" },
           { text: "Clone & Merge", link: "/guide/clone-merge" },
           { text: "Cache", link: "/guide/cache" },
           { text: "Iterator", link: "/guide/iterator" },
@@ -319,12 +320,17 @@ gtag('config', '${GA_ID}');`,
           { text: "Iterator", link: "/examples/iterator" },
           { text: "Validation", link: "/examples/validation" },
           { text: "Serialization", link: "/examples/serialization" },
+          { text: "OS Environment", link: "/examples/os-env" },
+          { text: "File I/O", link: "/examples/file_io" },
+          { text: "Error Handling", link: "/examples/error_handling" },
+          { text: "Type-Safe", link: "/examples/type_safe" },
         ],
       },
       {
         text: "API Reference",
         items: [
           { text: "Env", link: "/api/env" },
+          { text: "OsEnv", link: "/api/os_env" },
           { text: "Schema", link: "/api/schema" },
           { text: "Config", link: "/api/config" },
           { text: "Validators", link: "/api/validators" },
