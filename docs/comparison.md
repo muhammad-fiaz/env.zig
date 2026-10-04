@@ -40,7 +40,7 @@ They are complementary — most apps use both.
 | **Serialization** | No | Yes (quoting via `helpers.needsQuoting`, `helpers.escapedForChar`) |
 | **Cache** | No | Yes |
 | **Iterator** | Map iterator | `next`/`peek`/`reset`/`skip`/`remaining`/`collect` |
-| **Config Options** | OS-specific | 15+ (`strict`, `trim`, `interpolate`, `export_to_env`, `sort_keys`, etc.) |
+| **Config Options** | OS-specific | 15+ (`strict`, `trim`, `interpolate`, `exportToEnv`, `sortKeys`, etc.) |
 | **Case Sensitivity** | Windows: case-insensitive | Env: case-sensitive; OS: Windows-insensitive via `Wyhash`/`eqlIgnoreCaseWtf8` |
 | **Multiple Files** | N/A | Yes (`loadMany`) |
 | **Override Control** | N/A | Yes (`override`) |
@@ -68,7 +68,7 @@ defer env_map.deinit();
 Use `env.zig` when you need `.env` parsing, `export` compat, shell-like interpolation with OS fallback, validation, type-safe access, temporary scopes, or `Environ.Map` bridging:
 
 ```zig
-var env = env_mod.Env.init(allocator, .{ .interpolate = true });
+var env = envMod.Env.init(allocator, .{ .interpolate = true });
 defer env.deinit();
 try env.load(".env");
 try env.loadOsEnvWithPrefix("APP_"); // APP_PORT -> PORT
@@ -76,7 +76,7 @@ const port = env.getInt(u16, "PORT") orelse 3000;
 try env.set("NEW_KEY", "value");
 _ = env.remove("DEBUG");
 {
-    var scope = env_mod.Scope.init(allocator);
+    var scope = envMod.Scope.init(allocator);
     defer scope.deinit();
     try scope.set("TMP", "temp");
 }
@@ -85,15 +85,15 @@ _ = env.remove("DEBUG");
 ## Using Both Together — 12-Factor
 
 ```zig
-var app_env = env_mod.Env.init(allocator, .{});
-defer app_env.deinit();
-try app_env.load(".env");
-try app_env.loadOsEnvIfMissing(); // OS fills missing only
+var appEnv = envMod.Env.init(allocator, .{});
+defer appEnv.deinit();
+try appEnv.load(".env");
+try appEnv.loadOsEnvIfMissing(); // OS fills missing only
 // Or: Env first, then OS fallback per-key:
-const db_url = app_env.getOs("DATABASE_URL") orelse "postgres://localhost/default";
+const dbUrl = appEnv.getOs("DATABASE_URL") orelse "postgres://localhost/default";
 // Or push Env to OS for children:
-try app_env.exportToOsEnv();
-var map = try app_env.toEnvironMap(allocator);
+try appEnv.exportToOsEnv();
+var map = try appEnv.toEnvironMap(allocator);
 defer map.deinit();
 // spawn with map
 ```

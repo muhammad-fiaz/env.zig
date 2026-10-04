@@ -1,9 +1,12 @@
 const std = @import("std");
 
 /// An iterator over key-value pairs in an env store.
+/// Owns `entries` only when created via `Env.iterator` (see `deinit`).
+/// Iterators created with `init` over caller-owned slices need no cleanup.
 pub const Iterator = struct {
     entries: []const Entry,
     index: usize,
+    allocator: ?std.mem.Allocator = null,
 
     pub const Entry = struct {
         key: []const u8,
@@ -15,6 +18,16 @@ pub const Iterator = struct {
             .entries = entries,
             .index = 0,
         };
+    }
+
+    /// Free the entries slice when this iterator owns it
+    /// (iterators returned by `Env.iterator`). No-op otherwise.
+    pub fn deinit(self: *Iterator) void {
+        if (self.allocator) |alloc| {
+            alloc.free(self.entries);
+            self.entries = &.{};
+            self.index = 0;
+        }
     }
 
     pub fn next(self: *Iterator) ?Entry {
@@ -97,4 +110,23 @@ test "Iterator skip and remaining" {
     it.skip(2);
     try std.testing.expectEqual(@as(usize, 1), it.remaining());
     try std.testing.expectEqual(@as(?Iterator.Entry, .{ .key = "C", .value = "3" }), it.next());
+}
+
+test "Iterator deinit frees owned entries" {
+    const owned = try std.testing.allocator.alloc(Iterator.Entry, 2);
+    owned[0] = .{ .key = "A", .value = "1" };
+    owned[1] = .{ .key = "B", .value = "2" };
+    var it = Iterator{ .entries = owned, .index = 0, .allocator = std.testing.allocator };
+    try std.testing.expectEqual(@as(usize, 2), it.remaining());
+    it.deinit();
+    try std.testing.expectEqual(@as(usize, 0), it.remaining());
+}
+
+test "Iterator deinit is no-op for borrowed entries" {
+    const entries = [_]Iterator.Entry{
+        .{ .key = "A", .value = "1" },
+    };
+    var it = Iterator.init(&entries);
+    it.deinit();
+    try std.testing.expectEqual(@as(usize, 1), it.remaining());
 }

@@ -9,7 +9,7 @@ Demonstrates file persistence, `loadMany` with override, `reload`, and `loadOsEn
 
 ## Source
 
-<<< @/examples/file_io.zig
+<<< ../../examples/file_io.zig
 
 ## Running
 

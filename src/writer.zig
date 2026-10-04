@@ -1,8 +1,8 @@
 const std = @import("std");
 const config = @import("config.zig");
-const serializer_mod = @import("serializer.zig");
-const Serializer = serializer_mod.Serializer;
-const SerEntry = serializer_mod.SerEntry;
+const serializerMod = @import("serializer.zig");
+const Serializer = serializerMod.Serializer;
+const SerEntry = serializerMod.SerEntry;
 const helpers = @import("internal/helpers.zig");
 
 const Config = config.Config;
@@ -10,18 +10,22 @@ const Config = config.Config;
 /// Write .env entries to a file.
 pub const Writer = struct {
     /// Write entries to a file at the given path.
+    /// Honors `cfg.sortKeys` (sorted output when enabled).
     pub fn writeToFile(
         allocator: std.mem.Allocator,
         path: []const u8,
         entries: []const SerEntry,
         cfg: Config,
     ) !void {
-        const content = try Serializer.serialize(allocator, entries, cfg);
+        const content = if (cfg.sortKeys)
+            try Serializer.serializeSorted(allocator, entries, cfg)
+        else
+            try Serializer.serialize(allocator, entries, cfg);
         defer allocator.free(content);
 
         const dir = std.Io.Dir.cwd();
-        var io_threaded: std.Io.Threaded = .init_single_threaded;
-        const io = io_threaded.io();
+        var ioThreaded: std.Io.Threaded = .init_single_threaded;
+        const io = ioThreaded.io();
 
         try dir.writeFile(io, .{
             .sub_path = path,
@@ -45,7 +49,7 @@ pub const Writer = struct {
             if (pos >= buf.len) return error.NoSpaceLeft;
             buf[pos] = '=';
             pos += 1;
-            if (helpers.needsQuoting(entry.value, cfg.quote_spaces)) {
+            if (helpers.needsQuoting(entry.value, cfg.quoteSpaces)) {
                 if (pos >= buf.len) return error.NoSpaceLeft;
                 buf[pos] = '"';
                 pos += 1;

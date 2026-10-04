@@ -15,8 +15,8 @@ pub fn isValidKey(key: []const u8) bool {
 
 /// Returns true if value needs quoting when serializing to .env.
 /// Shared by serializer and writer — single source of truth.
-pub fn needsQuoting(value: []const u8, quote_spaces: bool) bool {
-    if (!quote_spaces) return false;
+pub fn needsQuoting(value: []const u8, quoteSpaces: bool) bool {
+    if (!quoteSpaces) return false;
     return value.len == 0 or
         std.mem.indexOfScalar(u8, value, ' ') != null or
         std.mem.indexOfScalar(u8, value, '#') != null or

@@ -22,13 +22,13 @@ Demonstrates schema validation with required/optional fields, errors, and warnin
 ```zig
 const std = @import("std");
 const Io = std.Io;
-const env_mod = @import("env");
+const envMod = @import("env");
 
 pub fn main(init: std.process.Init) !void {
     const io = init.io;
     const allocator = init.gpa;
 
-    var env = env_mod.Env.init(allocator, .{});
+    var env = envMod.Env.init(allocator, .{});
     defer env.deinit();
 
     try env.parseString(
@@ -39,69 +39,70 @@ pub fn main(init: std.process.Init) !void {
         \\
     );
 
-    var stdout_buffer: [0x100]u8 = undefined;
-    var stdout_writer = Io.File.stdout().writer(io, &stdout_buffer);
-    const stdout = &stdout_writer.interface;
+    var stdoutBuffer: [0x100]u8 = undefined;
+    var stdoutWriter = Io.File.stdout().writer(io, &stdoutBuffer);
+    const stdout = &stdoutWriter.interface;
 
     try stdout.print("=== Validation Example ===\n\n", .{});
 
-    const schema = env_mod.schema.Schema{
+    const schema = envMod.schema.Schema{
         .fields = &.{
             .{
                 .key = "APP_NAME",
                 .required = true,
-                .validators_list = &.{env_mod.validator.validators.required},
+                .validatorsList = &.{envMod.validator.validators.required},
                 .description = "Application name",
             },
             .{
                 .key = "PORT",
                 .required = true,
-                .validators_list = &.{ env_mod.validator.validators.required, env_mod.validator.validators.integer },
+                .validatorsList = &.{ envMod.validator.validators.required, envMod.validator.validators.integer },
                 .description = "Server port",
             },
             .{
                 .key = "DEBUG",
                 .required = false,
-                .validators_list = &.{env_mod.validator.validators.boolean},
+                .validatorsList = &.{envMod.validator.validators.boolean},
                 .description = "Enable debug mode",
             },
             .{
                 .key = "API_KEY",
                 .required = false,
-                .validators_list = &.{env_mod.validator.validators.required},
+                .validatorsList = &.{envMod.validator.validators.required},
                 .description = "API secret key",
             },
             .{
                 .key = "DATABASE_URL",
                 .required = false,
-                .validators_list = &.{env_mod.validator.validators.url},
+                .validatorsList = &.{envMod.validator.validators.url},
                 .description = "Database connection URL",
             },
         },
     };
 
-    const errs = env.validate(schema);
+    const errs = try env.validate(allocator, schema);
+    defer allocator.free(errs);
 
-    var has_errors = false;
-    var has_warnings = false;
+    var hasErrors = false;
+    var hasWarnings = false;
 
     for (errs) |err| {
         if (err.level == .err) {
-            if (!has_errors) {
+            if (!hasErrors) {
                 try stdout.print("Errors:\n", .{});
-                has_errors = true;
+                hasErrors = true;
             }
             try stdout.print("  [ERROR] {s}: {s}\n", .{ err.key, err.message });
         } else {
-            if (!has_warnings) {
+            if (!hasWarnings) {
                 try stdout.print("\nWarnings:\n", .{});
-                has_warnings = true;
+                hasWarnings = true;
             }
             try stdout.print("  [WARN]  {s}: {s}\n", .{ err.key, err.message });
         }
     }
 
-    if (!has_errors and !has_warnings) {
+    if (!hasErrors and !hasWarnings) {
         try stdout.print("Validation passed! All required fields present and valid.\n", .{});
     }
 
@@ -124,9 +125,10 @@ zig-out/bin/validation_example
 ```
 === Validation Example ===
 
+
 Warnings:
-  [WARN]  API_KEY: optional field 'API secret key' is missing
-  [WARN]  DATABASE_URL: optional field 'Database connection URL' is missing
+  [WARN]  API_KEY: optional field is missing
+  [WARN]  DATABASE_URL: optional field is missing
 
 Loaded config:
   APP_NAME = MyApp

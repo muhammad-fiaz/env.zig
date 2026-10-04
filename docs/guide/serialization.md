@@ -35,16 +35,16 @@ try env.save("output.env");
 
 | Config Option | Default | Description |
 |---------------|---------|-------------|
-| `sort_keys` | `false` | Sort keys alphabetically |
-| `quote_spaces` | `true` | Quote values containing spaces |
-| `trailing_newline` | `true` | Add a trailing newline |
-| `preserve_comments` | `false` | Preserve original comments |
+| `sortKeys` | `false` | Sort keys alphabetically |
+| `quoteSpaces` | `true` | Quote values containing spaces |
+| `trailingNewline` | `true` | Add a trailing newline |
+| `preserveComments` | `false` | Preserve original comments |
 | `indent` | `0` | Indentation spaces |
 
 ## Sorted Keys
 
 ```zig
-var env = env_mod.Env.init(allocator, .{ .sort_keys = true });
+var env = envMod.Env.init(allocator, .{ .sortKeys = true });
 // Keys will be sorted alphabetically in output
 ```
 

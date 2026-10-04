@@ -14,7 +14,7 @@ export const GTM_ID = "GTM-P4M9T8ZR";
 export const ADSENSE_CLIENT_ID = "ca-pub-2040560600290490";
 
 // SEO Keywords — covers all env features for industry search
-export const KEYWORDS = "zig, env, dotenv, environment, configuration, .env, interpolation, os env, windows, linux, macos, scope, temporary env, snapshot, validation, serialization, schema, parser, lexer, type-safe, allocator, cross-platform, aarch64, x86, 64-bit, 32-bit, zig 0.16";
+export const KEYWORDS = "zig, env, dotenv, environment, configuration, .env, interpolation, os env, windows, linux, macos, scope, temporary env, snapshot, validation, serialization, schema, parser, lexer, type-safe, allocator, cross-platform, aarch64, x86, 64-bit, 32-bit, zig 0.17";
 
 export default defineConfig({
   lang: "en-US",
@@ -204,7 +204,7 @@ gtag('config', '${GA_ID}');`,
           "priceCurrency": "USD"
         },
         "downloadUrl": "https://github.com/muhammad-fiaz/env.zig",
-        "softwareVersion": "0.0.2",
+        "softwareVersion": "0.0.3",
         "license": "https://opensource.org/licenses/MIT"
       });
     } else {

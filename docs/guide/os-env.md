@@ -20,9 +20,9 @@ head:
 ## Quick Start
 
 ```zig
-const env_mod = @import("env");
-const OsEnv = env_mod.OsEnv;
-const Scope = env_mod.Scope;
+const envMod = @import("env");
+const OsEnv = envMod.OsEnv;
+const Scope = envMod.Scope;
 
 // Direct OS access (cross-platform)
 try OsEnv.set("MY_KEY", "my_value");
@@ -30,7 +30,7 @@ const v = OsEnv.get("MY_KEY"); // ?[]const u8
 try OsEnv.unset("MY_KEY");
 
 // Env store with OS fallback
-var env = env_mod.Env.init(allocator, .{});
+var env = envMod.Env.init(allocator, .{});
 defer env.deinit();
 try env.load(".env");
 const host = env.getOs("HOST") orelse "localhost"; // Env first, then OS
@@ -54,7 +54,7 @@ try env.loadOsEnvWithPrefix("APP_");
 try env.exportToOsEnv();
 
 // Also via config:
-var env2 = env_mod.Env.init(allocator, .{ .export_to_env = true });
+var env2 = envMod.Env.init(allocator, .{ .exportToEnv = true });
 try env2.set("FOO", "bar"); // automatically sets OS env too
 ```
 

@@ -22,22 +22,22 @@ Independent copies and default value merging.
 ```zig
 const std = @import("std");
 const Io = std.Io;
-const env_mod = @import("env");
+const envMod = @import("env");
 
 pub fn main(init: std.process.Init) !void {
     const io = init.io;
     const allocator = init.gpa;
 
-    var env = env_mod.Env.init(allocator, .{});
+    var env = envMod.Env.init(allocator, .{});
     defer env.deinit();
 
     try env.set("APP_NAME", "MyApp");
     try env.set("PORT", "8080");
     try env.set("DEBUG", "true");
 
-    var stdout_buffer: [0x100]u8 = undefined;
-    var stdout_writer = Io.File.stdout().writer(io, &stdout_buffer);
-    const stdout = &stdout_writer.interface;
+    var stdoutBuffer: [0x100]u8 = undefined;
+    var stdoutWriter = Io.File.stdout().writer(io, &stdoutBuffer);
+    const stdout = &stdoutWriter.interface;
 
     try stdout.print("=== Clone & Merge Example ===\n\n", .{});
 
@@ -63,7 +63,7 @@ pub fn main(init: std.process.Init) !void {
     try stdout.print("  Original has NEW_KEY = {}\n", .{env.contains("NEW_KEY")});
     try stdout.print("  Cloned has NEW_KEY = {}\n", .{cloned.contains("NEW_KEY")});
 
-    var defaults = env_mod.Env.init(allocator, .{});
+    var defaults = envMod.Env.init(allocator, .{});
     defer defaults.deinit();
 
     try defaults.set("PORT", "3000");

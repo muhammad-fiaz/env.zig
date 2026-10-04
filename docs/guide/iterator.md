@@ -31,14 +31,14 @@ for (env.keys()) |key| {
 
 ```zig
 var it = env.iterator();
-defer allocator.free(it.entries); // Free allocated entries
+defer it.deinit(); // Free allocated entries
 while (it.next()) |entry| {
     try stdout.print("{s} = {s}\n", .{ entry.key, entry.value });
 }
 ```
 
 ::: warning
-The iterator allocates an entries slice. Always free it with `defer allocator.free(it.entries)`.
+The iterator owns its entries slice. Always release it with `defer it.deinit()`.
 :::
 
 ## Advanced Operations
@@ -49,7 +49,7 @@ Look at the next entry without consuming it:
 
 ```zig
 var it = env.iterator();
-defer allocator.free(it.entries);
+defer it.deinit();
 
 if (it.peek()) |entry| {
     try stdout.print("Next: {s}\n", .{entry.key});
@@ -67,7 +67,7 @@ Skip entries ahead:
 
 ```zig
 var it = env.iterator();
-defer allocator.free(it.entries);
+defer it.deinit();
 it.skip(2); // Skip first 2 entries
 
 while (it.next()) |entry| {
@@ -81,7 +81,7 @@ Return to the beginning:
 
 ```zig
 var it = env.iterator();
-defer allocator.free(it.entries);
+defer it.deinit();
 _ = it.next();
 _ = it.next();
 
@@ -94,7 +94,7 @@ Check how many entries are left:
 
 ```zig
 var it = env.iterator();
-defer allocator.free(it.entries);
+defer it.deinit();
 try std.testing.expectEqual(@as(usize, 5), it.remaining());
 
 it.skip(2);
@@ -107,17 +107,17 @@ Gather entries matching a predicate:
 
 ```zig
 const isDatabase = struct {
-    fn predicate(entry: env_mod.Iterator.Entry) bool {
+    fn predicate(entry: envMod.Iterator.Entry) bool {
         return std.mem.startsWith(u8, entry.key, "DATABASE");
     }
 }.predicate;
 
 var it = env.iterator();
-defer allocator.free(it.entries);
-const db_entries = try it.collect(allocator, isDatabase);
-defer allocator.free(db_entries);
+defer it.deinit();
+const dbEntries = try it.collect(allocator, isDatabase);
+defer allocator.free(dbEntries);
 
-for (db_entries) |entry| {
+for (dbEntries) |entry| {
     try stdout.print("DB config: {s} = {s}\n", .{ entry.key, entry.value });
 }
 ```

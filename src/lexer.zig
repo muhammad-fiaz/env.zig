@@ -35,8 +35,8 @@ pub const Lexer = struct {
         }
 
         const start = self.pos;
-        const start_line = self.line;
-        const start_col = self.col;
+        const startLine = self.line;
+        const startCol = self.col;
         const ch = self.source[self.pos];
 
         if (ch == '\n' or ch == '\r') {
@@ -52,18 +52,18 @@ pub const Lexer = struct {
             return .{
                 .type = .newline,
                 .slice = self.source[start..self.pos],
-                .line = start_line,
-                .column = start_col,
+                .line = startLine,
+                .column = startCol,
             };
         }
 
-        if (ch == self.config.comment_char) {
+        if (ch == self.config.commentChar) {
             self.skipToEndOfLine();
             return .{
                 .type = .comment,
                 .slice = self.source[start..self.pos],
-                .line = start_line,
-                .column = start_col,
+                .line = startLine,
+                .column = startCol,
             };
         }
 
@@ -75,8 +75,8 @@ pub const Lexer = struct {
             return .{
                 .type = .whitespace,
                 .slice = self.source[start..self.pos],
-                .line = start_line,
-                .column = start_col,
+                .line = startLine,
+                .column = startCol,
             };
         }
 
@@ -86,8 +86,8 @@ pub const Lexer = struct {
             return .{
                 .type = .equals,
                 .slice = self.source[start..self.pos],
-                .line = start_line,
-                .column = start_col,
+                .line = startLine,
+                .column = startCol,
             };
         }
 
@@ -112,8 +112,8 @@ pub const Lexer = struct {
 
     fn readQuoted(self: *Lexer, tt: TokenType, quote: u8) Token {
         const start = self.pos;
-        const start_line = self.line;
-        const start_col = self.col;
+        const startLine = self.line;
+        const startCol = self.col;
         self.pos += 1;
         self.col += 1;
 
@@ -128,8 +128,8 @@ pub const Lexer = struct {
                 return .{
                     .type = tt,
                     .slice = self.source[start..self.pos],
-                    .line = start_line,
-                    .column = start_col,
+                    .line = startLine,
+                    .column = startCol,
                 };
             } else if (ch == '\n' or ch == '\r') {
                 if (ch == '\r' and self.pos + 1 < self.source.len and self.source[self.pos + 1] == '\n') {
@@ -150,15 +150,15 @@ pub const Lexer = struct {
         return .{
             .type = tt,
             .slice = self.source[start..self.pos],
-            .line = start_line,
-            .column = start_col,
+            .line = startLine,
+            .column = startCol,
         };
     }
 
     fn readInterpolation(self: *Lexer) Token {
         const start = self.pos;
-        const start_line = self.line;
-        const start_col = self.col;
+        const startLine = self.line;
+        const startCol = self.col;
         self.pos += 2;
         self.col += 2;
 
@@ -180,15 +180,15 @@ pub const Lexer = struct {
         return .{
             .type = .interpolation,
             .slice = self.source[start..self.pos],
-            .line = start_line,
-            .column = start_col,
+            .line = startLine,
+            .column = startCol,
         };
     }
 
     fn readUnquoted(self: *Lexer) Token {
         const start = self.pos;
-        const start_line = self.line;
-        const start_col = self.col;
+        const startLine = self.line;
+        const startCol = self.col;
 
         while (self.pos < self.source.len) {
             const ch = self.source[self.pos];
@@ -208,8 +208,8 @@ pub const Lexer = struct {
             else
                 .value,
             .slice = self.source[start..self.pos],
-            .line = start_line,
-            .column = start_col,
+            .line = startLine,
+            .column = startCol,
         };
     }
 

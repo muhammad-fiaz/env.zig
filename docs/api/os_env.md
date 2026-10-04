@@ -38,7 +38,7 @@ Owned copy.
 ### `getOrDefault` / `exists` / `isEmpty`
 
 ```zig
-pub fn getOrDefault(key: []const u8, default: []const u8) []const u8
+pub fn getOrDefault(key: []const u8, defaultValue: []const u8) []const u8
 pub fn exists(key: []const u8) bool
 pub fn isEmpty(key: []const u8) bool
 ```

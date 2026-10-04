@@ -67,11 +67,11 @@ pub const validators = struct {
             if (value.len == 1) return "value must be a valid float";
             start = 1;
         }
-        var dot_seen = false;
+        var dotSeen = false;
         for (value[start..]) |ch| {
             if (ch == '.') {
-                if (dot_seen) return "value must be a valid float";
-                dot_seen = true;
+                if (dotSeen) return "value must be a valid float";
+                dotSeen = true;
             } else if (!std.ascii.isDigit(ch)) {
                 return "value must be a valid float";
             }
@@ -129,31 +129,31 @@ pub const validators = struct {
     }
 
     /// Value must be within a numeric range.
-    pub fn range(comptime min_val: i64, comptime max_val: i64) ValidatorFn {
+    pub fn range(comptime minVal: i64, comptime maxVal: i64) ValidatorFn {
         return struct {
             pub fn validate(value: []const u8) ?[]const u8 {
                 const num = std.fmt.parseInt(i64, value, 10) catch return "value must be a valid integer";
-                if (num < min_val or num > max_val) return "value is out of range";
+                if (num < minVal or num > maxVal) return "value is out of range";
                 return null;
             }
         }.validate;
     }
 
     /// Value must have a minimum length.
-    pub fn minLength(comptime min_len: usize) ValidatorFn {
+    pub fn minLength(comptime minLen: usize) ValidatorFn {
         return struct {
             pub fn validate(value: []const u8) ?[]const u8 {
-                if (value.len < min_len) return "value is too short";
+                if (value.len < minLen) return "value is too short";
                 return null;
             }
         }.validate;
     }
 
     /// Value must have a maximum length.
-    pub fn maxLength(comptime max_len: usize) ValidatorFn {
+    pub fn maxLength(comptime maxLen: usize) ValidatorFn {
         return struct {
             pub fn validate(value: []const u8) ?[]const u8 {
-                if (value.len > max_len) return "value is too long";
+                if (value.len > maxLen) return "value is too long";
                 return null;
             }
         }.validate;
@@ -174,14 +174,14 @@ pub const validators = struct {
 
 /// A validation pipeline that runs multiple validators.
 pub const Validator = struct {
-    validators_list: []const ValidatorFn,
+    validatorsList: []const ValidatorFn,
 
-    pub fn init(validator_list: []const ValidatorFn) Validator {
-        return .{ .validators_list = validator_list };
+    pub fn init(validatorList: []const ValidatorFn) Validator {
+        return .{ .validatorsList = validatorList };
     }
 
     pub fn validate(self: Validator, value: []const u8) ?[]const u8 {
-        for (self.validators_list) |v| {
+        for (self.validatorsList) |v| {
             if (v(value)) |err| return err;
         }
         return null;

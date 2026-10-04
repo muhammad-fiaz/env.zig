@@ -9,7 +9,7 @@ Shows correct `!void` returns, `catch |err| switch`, strict vs lenient, and `Val
 
 ## Source
 
-<<< @/examples/error_handling.zig
+<<< ../../examples/error_handling.zig
 
 ## Running
 

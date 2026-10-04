@@ -24,7 +24,7 @@ features:
   - title: Type-Safe Accessors
     details: get, getBool, getInt, getFloat, getEnum, getList with automatic parsing and OS fallback via getOs.
   - title: Write & Update
-    details: Add, overwrite and merge entries with set / merge; optionally sync to OS env via export_to_env.
+    details: Add, overwrite and merge entries with set / merge; optionally sync to OS env via exportToEnv.
   - title: Delete & Clear
     details: Remove single keys or clear all entries while preserving allocator ownership and insertion order.
   - title: Variable Interpolation

@@ -1,8 +1,8 @@
 const std = @import("std");
-const os_env = @import("os_env.zig");
+const osEnv = @import("os_env.zig");
 
 /// Maximum number of interpolation references tracked for cycle detection.
-const max_depth_limit = 64;
+const maxDepthLimit = 64;
 
 /// Resolve variable interpolation in a value string.
 /// Replaces ${VAR}, ${VAR:-default}, ${VAR:+alt}, $VAR with values from map or OS env.
@@ -11,17 +11,17 @@ pub fn interpolate(
     allocator: std.mem.Allocator,
     value: []const u8,
     vars: *const std.StringHashMap([]const u8),
-    max_depth: usize,
+    maxDepth: usize,
 ) (std.mem.Allocator.Error || error{ CircularDependency, MaxDepthExceeded })![]const u8 {
-    var seen_buf: [max_depth_limit][]const u8 = undefined;
-    var seen_len: usize = 0;
-    return interpolateImpl(allocator, value, vars, max_depth, 0, &seen_buf, &seen_len);
+    var seenBuf: [maxDepthLimit][]const u8 = undefined;
+    var seenLen: usize = 0;
+    return interpolateImpl(allocator, value, vars, maxDepth, 0, &seenBuf, &seenLen);
 }
 
 fn lookupVar(name: []const u8, vars: *const std.StringHashMap([]const u8)) ?[]const u8 {
     if (vars.get(name)) |v| return v;
     // OS fallback (POSIX getenv / Windows GetEnvironmentVariableW)
-    return os_env.OsEnv.get(name);
+    return osEnv.OsEnv.get(name);
 }
 
 const BraceParse = struct {
@@ -56,141 +56,141 @@ fn interpolateImpl(
     allocator: std.mem.Allocator,
     value: []const u8,
     vars: *const std.StringHashMap([]const u8),
-    max_depth: usize,
-    current_depth: usize,
-    seen_buf: *[max_depth_limit][]const u8,
-    seen_len: *usize,
+    maxDepth: usize,
+    currentDepth: usize,
+    seenBuf: *[maxDepthLimit][]const u8,
+    seenLen: *usize,
 ) (std.mem.Allocator.Error || error{ CircularDependency, MaxDepthExceeded })![]const u8 {
-    if (current_depth > max_depth) return error.MaxDepthExceeded;
+    if (currentDepth > maxDepth) return error.MaxDepthExceeded;
 
     var result: std.ArrayList(u8) = .empty;
     errdefer result.deinit(allocator);
 
     var i: usize = 0;
     while (i < value.len) {
-        const start_i = i;
+        const startI = i;
         if (value[i] == '$' and i + 1 < value.len and value[i + 1] == '{') {
-            const ref_start = i + 2;
-            var ref_end = ref_start;
+            const refStart = i + 2;
+            var refEnd = refStart;
             // Handle nested ${} inside default values: find matching '}' with depth
-            var pos = ref_start;
+            var pos = refStart;
             var found: ?usize = null;
-            var inner_depth: usize = 0;
+            var innerDepth: usize = 0;
             while (pos < value.len) {
                 if (value[pos] == '$' and pos + 1 < value.len and value[pos + 1] == '{') {
-                    inner_depth += 1;
+                    innerDepth += 1;
                     pos += 2;
                     continue;
                 } else if (value[pos] == '}') {
-                    if (inner_depth == 0) {
+                    if (innerDepth == 0) {
                         found = pos;
                         break;
                     } else {
-                        inner_depth -= 1;
+                        innerDepth -= 1;
                     }
                 }
                 pos += 1;
             }
             if (found) |fe| {
-                ref_end = fe;
-                var inner = value[ref_start..ref_end];
+                refEnd = fe;
+                var inner = value[refStart..refEnd];
                 // Strip $env: / $env. prefix (PowerShell style) for terminal env compat
                 if (inner.len >= 4 and (std.mem.startsWith(u8, inner, "env:") or std.mem.startsWith(u8, inner, "env."))) {
                     inner = inner[4..];
                 }
-                i = ref_end + 1;
+                i = refEnd + 1;
                 const parsed = parseBrace(inner);
 
                 // Circular check on the base name
-                for (seen_buf.ptr[0..seen_len.*]) |s| {
+                for (seenBuf.ptr[0..seenLen.*]) |s| {
                     if (std.mem.eql(u8, s, parsed.name)) return error.CircularDependency;
                 }
-                if (seen_len.* < max_depth_limit) {
-                    seen_buf.ptr[seen_len.*] = parsed.name;
-                    seen_len.* += 1;
+                if (seenLen.* < maxDepthLimit) {
+                    seenBuf.ptr[seenLen.*] = parsed.name;
+                    seenLen.* += 1;
                 }
 
-                const maybe_val = lookupVar(parsed.name, vars);
-                const is_set = maybe_val != null;
-                const is_nonempty = is_set and maybe_val.?.len != 0;
+                const maybeVal = lookupVar(parsed.name, vars);
+                const isSet = maybeVal != null;
+                const isNonempty = isSet and maybeVal.?.len != 0;
 
                 var expanded: ?[]const u8 = null;
-                var use_default = false;
-                var default_arg: ?[]const u8 = null;
-                var keep_literal = false;
+                var useDefault = false;
+                var defaultArg: ?[]const u8 = null;
+                var keepLiteral = false;
 
                 if (parsed.op == null) {
-                    if (maybe_val) |v| expanded = v else keep_literal = true;
+                    if (maybeVal) |v| expanded = v else keepLiteral = true;
                 } else if (std.mem.eql(u8, parsed.op.?, ":-")) {
-                    if (is_nonempty) expanded = maybe_val.? else {
-                        use_default = true;
-                        default_arg = parsed.arg orelse "";
+                    if (isNonempty) expanded = maybeVal.? else {
+                        useDefault = true;
+                        defaultArg = parsed.arg orelse "";
                     }
                 } else if (std.mem.eql(u8, parsed.op.?, "-")) {
-                    if (is_set) expanded = maybe_val.? else {
-                        use_default = true;
-                        default_arg = parsed.arg orelse "";
+                    if (isSet) expanded = maybeVal.? else {
+                        useDefault = true;
+                        defaultArg = parsed.arg orelse "";
                     }
                 } else if (std.mem.eql(u8, parsed.op.?, ":+")) {
-                    if (is_nonempty) {
-                        use_default = true;
-                        default_arg = parsed.arg orelse "";
+                    if (isNonempty) {
+                        useDefault = true;
+                        defaultArg = parsed.arg orelse "";
                     } else expanded = "";
                 } else if (std.mem.eql(u8, parsed.op.?, "+")) {
-                    if (is_set) {
-                        use_default = true;
-                        default_arg = parsed.arg orelse "";
+                    if (isSet) {
+                        useDefault = true;
+                        defaultArg = parsed.arg orelse "";
                     } else expanded = "";
                 } else if (std.mem.eql(u8, parsed.op.?, ":?") or std.mem.eql(u8, parsed.op.?, "?")) {
-                    const need_alt = if (std.mem.eql(u8, parsed.op.?, ":?")) !is_nonempty else !is_set;
-                    if (!need_alt) expanded = maybe_val.? else {
+                    const needAlt = if (std.mem.eql(u8, parsed.op.?, ":?")) !isNonempty else !isSet;
+                    if (!needAlt) expanded = maybeVal.? else {
                         if (parsed.arg) |a| {
                             // Expand error message as default (could also be considered error, but we return it)
-                            use_default = true;
-                            default_arg = a;
+                            useDefault = true;
+                            defaultArg = a;
                         } else {
                             // No message, keep literal error? Return empty
-                            use_default = true;
-                            default_arg = "";
+                            useDefault = true;
+                            defaultArg = "";
                         }
                     }
                 } else if (std.mem.eql(u8, parsed.op.?, ":=") or std.mem.eql(u8, parsed.op.?, "=")) {
                     // := and = assign default if missing; we mimic :- behavior (no actual assign to map for now)
-                    const need_default = if (std.mem.eql(u8, parsed.op.?, ":=")) !is_nonempty else !is_set;
-                    if (!need_default) expanded = maybe_val.? else {
-                        use_default = true;
-                        default_arg = parsed.arg orelse "";
+                    const needDefault = if (std.mem.eql(u8, parsed.op.?, ":=")) !isNonempty else !isSet;
+                    if (!needDefault) expanded = maybeVal.? else {
+                        useDefault = true;
+                        defaultArg = parsed.arg orelse "";
                     }
                 } else {
                     // Unknown operator, fallback to plain
-                    if (maybe_val) |v| expanded = v else keep_literal = true;
+                    if (maybeVal) |v| expanded = v else keepLiteral = true;
                 }
 
-                if (keep_literal) {
-                    try result.appendSlice(allocator, value[start_i..i]);
-                } else if (use_default) {
-                    const def = default_arg orelse "";
+                if (keepLiteral) {
+                    try result.appendSlice(allocator, value[startI..i]);
+                } else if (useDefault) {
+                    const def = defaultArg orelse "";
                     // Recursively interpolate the default/alt string itself
-                    const resolved_def = try interpolateImpl(
+                    const resolvedDef = try interpolateImpl(
                         allocator,
                         def,
                         vars,
-                        max_depth,
-                        current_depth + 1,
-                        seen_buf,
-                        seen_len,
+                        maxDepth,
+                        currentDepth + 1,
+                        seenBuf,
+                        seenLen,
                     );
-                    defer allocator.free(resolved_def);
-                    try result.appendSlice(allocator, resolved_def);
+                    defer allocator.free(resolvedDef);
+                    try result.appendSlice(allocator, resolvedDef);
                 } else if (expanded) |v| {
                     const resolved = try interpolateImpl(
                         allocator,
                         v,
                         vars,
-                        max_depth,
-                        current_depth + 1,
-                        seen_buf,
-                        seen_len,
+                        maxDepth,
+                        currentDepth + 1,
+                        seenBuf,
+                        seenLen,
                     );
                     defer if (resolved.ptr != v.ptr) allocator.free(resolved);
                     try result.appendSlice(allocator, resolved);
@@ -201,60 +201,60 @@ fn interpolateImpl(
             }
         } else if (value[i] == '$' and i + 5 < value.len and (std.mem.startsWith(u8, value[i + 1 ..], "env:") or std.mem.startsWith(u8, value[i + 1 ..], "env.")) and (value[i + 5] == '_' or std.ascii.isAlphabetic(value[i + 5]))) {
             // $env:VAR or $env.VAR (PowerShell style)
-            const dollar_pos = i;
-            const var_start = i + 5;
-            var var_end = var_start;
-            while (var_end < value.len and (std.ascii.isAlphanumeric(value[var_end]) or value[var_end] == '_')) : (var_end += 1) {}
-            const ref_name = value[var_start..var_end];
-            i = var_end;
-            for (seen_buf.ptr[0..seen_len.*]) |s| {
-                if (std.mem.eql(u8, s, ref_name)) return error.CircularDependency;
+            const dollarPos = i;
+            const varStart = i + 5;
+            var varEnd = varStart;
+            while (varEnd < value.len and (std.ascii.isAlphanumeric(value[varEnd]) or value[varEnd] == '_')) : (varEnd += 1) {}
+            const refName = value[varStart..varEnd];
+            i = varEnd;
+            for (seenBuf.ptr[0..seenLen.*]) |s| {
+                if (std.mem.eql(u8, s, refName)) return error.CircularDependency;
             }
-            if (seen_len.* < max_depth_limit) {
-                seen_buf.ptr[seen_len.*] = ref_name;
-                seen_len.* += 1;
+            if (seenLen.* < maxDepthLimit) {
+                seenBuf.ptr[seenLen.*] = refName;
+                seenLen.* += 1;
             }
-            if (lookupVar(ref_name, vars)) |ref_value| {
-                const resolved = try interpolateImpl(allocator, ref_value, vars, max_depth, current_depth + 1, seen_buf, seen_len);
-                defer if (resolved.ptr != ref_value.ptr) allocator.free(resolved);
+            if (lookupVar(refName, vars)) |refValue| {
+                const resolved = try interpolateImpl(allocator, refValue, vars, maxDepth, currentDepth + 1, seenBuf, seenLen);
+                defer if (resolved.ptr != refValue.ptr) allocator.free(resolved);
                 try result.appendSlice(allocator, resolved);
             } else {
-                try result.appendSlice(allocator, value[dollar_pos..i]);
+                try result.appendSlice(allocator, value[dollarPos..i]);
             }
         } else if (value[i] == '$' and i + 1 < value.len and (std.ascii.isAlphabetic(value[i + 1]) or value[i + 1] == '_')) {
-            const dollar_pos = i;
-            const ref_start = i + 1;
-            var ref_end = ref_start;
-            while (ref_end < value.len and (std.ascii.isAlphanumeric(value[ref_end]) or value[ref_end] == '_')) {
-                ref_end += 1;
+            const dollarPos = i;
+            const refStart = i + 1;
+            var refEnd = refStart;
+            while (refEnd < value.len and (std.ascii.isAlphanumeric(value[refEnd]) or value[refEnd] == '_')) {
+                refEnd += 1;
             }
-            const ref_name = value[ref_start..ref_end];
-            i = ref_end;
+            const refName = value[refStart..refEnd];
+            i = refEnd;
 
-            for (seen_buf.ptr[0..seen_len.*]) |s| {
-                if (std.mem.eql(u8, s, ref_name)) return error.CircularDependency;
-            }
-
-            if (seen_len.* < max_depth_limit) {
-                seen_buf.ptr[seen_len.*] = ref_name;
-                seen_len.* += 1;
+            for (seenBuf.ptr[0..seenLen.*]) |s| {
+                if (std.mem.eql(u8, s, refName)) return error.CircularDependency;
             }
 
-            if (lookupVar(ref_name, vars)) |ref_value| {
+            if (seenLen.* < maxDepthLimit) {
+                seenBuf.ptr[seenLen.*] = refName;
+                seenLen.* += 1;
+            }
+
+            if (lookupVar(refName, vars)) |refValue| {
                 const resolved = try interpolateImpl(
                     allocator,
-                    ref_value,
+                    refValue,
                     vars,
-                    max_depth,
-                    current_depth + 1,
-                    seen_buf,
-                    seen_len,
+                    maxDepth,
+                    currentDepth + 1,
+                    seenBuf,
+                    seenLen,
                 );
-                defer if (resolved.ptr != ref_value.ptr)
+                defer if (resolved.ptr != refValue.ptr)
                     allocator.free(resolved);
                 try result.appendSlice(allocator, resolved);
             } else {
-                try result.appendSlice(allocator, value[dollar_pos..i]);
+                try result.appendSlice(allocator, value[dollarPos..i]);
             }
         } else {
             try result.append(allocator, value[i]);
@@ -269,7 +269,7 @@ fn interpolateImpl(
 pub fn interpolateAll(
     allocator: std.mem.Allocator,
     entries: []struct { key: []const u8, value: []const u8 },
-    max_depth: usize,
+    maxDepth: usize,
 ) (std.mem.Allocator.Error || error{ CircularDependency, MaxDepthExceeded })!void {
     var vars = std.StringHashMap([]const u8).init(allocator);
     defer vars.deinit();
@@ -282,16 +282,16 @@ pub fn interpolateAll(
         if (std.mem.indexOf(u8, entry.value, "${") != null or
             (entry.value.len > 0 and entry.value[0] == '$'))
         {
-            var seen_buf: [max_depth_limit][]const u8 = undefined;
-            var seen_len: usize = 0;
+            var seenBuf: [maxDepthLimit][]const u8 = undefined;
+            var seenLen: usize = 0;
             const resolved = interpolateImpl(
                 allocator,
                 entry.value,
                 &vars,
-                max_depth,
+                maxDepth,
                 0,
-                &seen_buf,
-                &seen_len,
+                &seenBuf,
+                &seenLen,
             ) catch continue;
             allocator.free(entry.value);
             entry.value = resolved;

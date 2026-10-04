@@ -20,7 +20,7 @@ env.zig supports `${VAR}` / `$VAR` with shell-like fallbacks and OS env fallback
 ## Enable Interpolation
 
 ```zig
-var env = env_mod.Env.init(allocator, .{
+var env = envMod.Env.init(allocator, .{
     .interpolate = true, // default true
 });
 ```

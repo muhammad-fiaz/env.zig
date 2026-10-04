@@ -24,7 +24,7 @@ pub const Serializer = struct {
         for (entries) |entry| {
             try result.appendSlice(allocator, entry.key);
             try result.append(allocator, '=');
-            if (helpers.needsQuoting(entry.value, cfg.quote_spaces)) {
+            if (helpers.needsQuoting(entry.value, cfg.quoteSpaces)) {
                 try result.append(allocator, '"');
                 for (entry.value) |ch| {
                     if (helpers.escapedForChar(ch)) |esc| {
@@ -86,7 +86,7 @@ test "serialize with spaces" {
     const entries = [_]SerEntry{
         .{ .key = "KEY", .value = "hello world" },
     };
-    const result = try Serializer.serialize(std.testing.allocator, &entries, .{ .quote_spaces = true });
+    const result = try Serializer.serialize(std.testing.allocator, &entries, .{ .quoteSpaces = true });
     defer std.testing.allocator.free(result);
 
     try std.testing.expectEqualStrings("KEY=\"hello world\"\n", result);
@@ -96,7 +96,7 @@ test "serialize empty value" {
     const entries = [_]SerEntry{
         .{ .key = "KEY", .value = "" },
     };
-    const result = try Serializer.serialize(std.testing.allocator, &entries, .{ .quote_spaces = true });
+    const result = try Serializer.serialize(std.testing.allocator, &entries, .{ .quoteSpaces = true });
     defer std.testing.allocator.free(result);
 
     try std.testing.expectEqualStrings("KEY=\"\"\n", result);

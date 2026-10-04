@@ -22,13 +22,13 @@ pub const Entry = struct {
 pub const ParseOptions = struct {
     config: Config = .{},
     /// Optional file path for error messages.
-    file_path: ?[]const u8 = null,
+    filePath: ?[]const u8 = null,
 };
 
 /// Result of parsing a .env file.
 pub const ParseResult = struct {
     entries: std.ArrayList(Entry),
-    errors_list: std.ArrayList(Diagnostic),
+    errorsList: std.ArrayList(Diagnostic),
 
     pub fn deinit(self: *ParseResult, allocator: std.mem.Allocator) void {
         for (self.entries.items) |entry| {
@@ -36,16 +36,16 @@ pub const ParseResult = struct {
             allocator.free(entry.value);
         }
         self.entries.deinit(allocator);
-        for (self.errors_list.items) |*diag| {
+        for (self.errorsList.items) |*diag| {
             if (diag.file) |f| allocator.free(f);
             if (diag.token) |t| allocator.free(t);
             if (diag.suggestion) |s| allocator.free(s);
         }
-        self.errors_list.deinit(allocator);
+        self.errorsList.deinit(allocator);
     }
 
     pub fn hasErrors(self: *const ParseResult) bool {
-        return self.errors_list.items.len > 0;
+        return self.errorsList.items.len > 0;
     }
 
     pub fn getEntries(self: *const ParseResult) []const Entry {
@@ -61,7 +61,7 @@ pub fn parse(
 ) (std.mem.Allocator.Error || error{ParseError})!ParseResult {
     var result = ParseResult{
         .entries = .empty,
-        .errors_list = .empty,
+        .errorsList = .empty,
     };
     errdefer {
         for (result.entries.items) |entry| {
@@ -69,12 +69,12 @@ pub fn parse(
             allocator.free(entry.value);
         }
         result.entries.deinit(allocator);
-        for (result.errors_list.items) |*diag| {
+        for (result.errorsList.items) |*diag| {
             if (diag.file) |f| allocator.free(f);
             if (diag.token) |t| allocator.free(t);
             if (diag.suggestion) |s| allocator.free(s);
         }
-        result.errors_list.deinit(allocator);
+        result.errorsList.deinit(allocator);
     }
 
     var lexer = Lexer.init(source, options.config);
@@ -87,17 +87,17 @@ pub fn parse(
             .comment => continue,
             .whitespace => continue,
             .key => {
-                var key_text = tok.slice;
-                var key_line = tok.line;
+                var keyText = tok.slice;
+                var keyLine = tok.line;
                 // Handle `export KEY=value` prefix (shell compatibility)
-                if (std.mem.eql(u8, key_text, "export")) {
+                if (std.mem.eql(u8, keyText, "export")) {
                     var nxt = lexer.next();
                     while (nxt.type == .whitespace) nxt = lexer.next();
                     if (nxt.type != .key) {
                         if (nxt.type == .eof or nxt.type == .newline or nxt.type == .comment) continue;
                         try addDiagnostic(allocator, &result, .{
                             .kind = .parse_error,
-                            .file = options.file_path,
+                            .file = options.filePath,
                             .line = nxt.line,
                             .column = nxt.column,
                             .explanation = "expected key after 'export'",
@@ -106,18 +106,18 @@ pub fn parse(
                         skipToNewline(&lexer);
                         continue;
                     }
-                    key_text = nxt.slice;
-                    key_line = nxt.line;
+                    keyText = nxt.slice;
+                    keyLine = nxt.line;
                     tok = nxt;
                 }
 
-                if (!helpers.isValidKey(key_text)) {
+                if (!helpers.isValidKey(keyText)) {
                     try addDiagnostic(allocator, &result, .{
                         .kind = .invalid_key,
-                        .file = options.file_path,
+                        .file = options.filePath,
                         .line = tok.line,
                         .column = tok.column,
-                        .token = key_text,
+                        .token = keyText,
                         .explanation = "invalid key name",
                         .suggestion = "keys must start with a letter or underscore and contain only alphanumeric characters and underscores",
                     });
@@ -134,7 +134,7 @@ pub fn parse(
                 if (eq.type != .equals) {
                     try addDiagnostic(allocator, &result, .{
                         .kind = .parse_error,
-                        .file = options.file_path,
+                        .file = options.filePath,
                         .line = eq.line,
                         .column = eq.column,
                         .explanation = "expected '=' after key",
@@ -144,38 +144,38 @@ pub fn parse(
                     continue;
                 }
 
-                const val_tok = lexer.next();
-                var value: []const u8 = switch (val_tok.type) {
-                    .value => val_tok.slice,
-                    .quoted_value => try helpers.unescape(allocator, removeQuotes(val_tok.slice, '"')),
-                    .single_quoted_value => removeQuotes(val_tok.slice, '\''),
-                    .backtick_quoted_value => removeQuotes(val_tok.slice, '`'),
+                const valTok = lexer.next();
+                var value: []const u8 = switch (valTok.type) {
+                    .value => valTok.slice,
+                    .quoted_value => try helpers.unescape(allocator, removeQuotes(valTok.slice, '"')),
+                    .single_quoted_value => removeQuotes(valTok.slice, '\''),
+                    .backtick_quoted_value => removeQuotes(valTok.slice, '`'),
                     .interpolation => blk: {
                         // Interpolation may be followed by more text (e.g. ${GREETING} world)
-                        var full_value: std.ArrayList(u8) = .empty;
-                        errdefer full_value.deinit(allocator);
-                        try full_value.appendSlice(allocator, val_tok.slice);
+                        var fullValue: std.ArrayList(u8) = .empty;
+                        errdefer fullValue.deinit(allocator);
+                        try fullValue.appendSlice(allocator, valTok.slice);
                         while (true) {
                             const next = lexer.next();
                             switch (next.type) {
-                                .value => try full_value.appendSlice(allocator, next.slice),
-                                .whitespace => try full_value.appendSlice(allocator, next.slice),
-                                .interpolation => try full_value.appendSlice(allocator, next.slice),
+                                .value => try fullValue.appendSlice(allocator, next.slice),
+                                .whitespace => try fullValue.appendSlice(allocator, next.slice),
+                                .interpolation => try fullValue.appendSlice(allocator, next.slice),
                                 .newline, .eof => break,
                                 else => break,
                             }
                         }
-                        break :blk try full_value.toOwnedSlice(allocator);
+                        break :blk try fullValue.toOwnedSlice(allocator);
                     },
                     .newline, .eof => "",
                     .comment => "",
                     else => {
                         try addDiagnostic(allocator, &result, .{
                             .kind = .invalid_value,
-                            .file = options.file_path,
-                            .line = val_tok.line,
-                            .column = val_tok.column,
-                            .token = val_tok.slice,
+                            .file = options.filePath,
+                            .line = valTok.line,
+                            .column = valTok.column,
+                            .token = valTok.slice,
                             .explanation = "unexpected token after '='",
                         });
                         if (options.config.strict) return error.ParseError;
@@ -188,40 +188,44 @@ pub fn parse(
                     value = std.mem.trim(u8, value, " \t\r\n");
                 }
 
-                if (value.len == 0 and !options.config.allow_empty) {
+                if (value.len == 0 and !options.config.allowEmpty) {
                     try addDiagnostic(allocator, &result, .{
                         .kind = .invalid_value,
-                        .file = options.file_path,
-                        .line = key_line,
+                        .file = options.filePath,
+                        .line = keyLine,
                         .explanation = "empty value not allowed",
-                        .suggestion = "set a value or use allow_empty = true",
+                        .suggestion = "set a value or use allowEmpty = true",
                     });
                     if (options.config.strict) return error.ParseError;
                     // Value already consumed (newline/eof), no need to skip — just continue to next entry
                     // Free allocated value if needed
-                    if (val_tok.type == .interpolation or val_tok.type == .quoted_value) {
+                    if (valTok.type == .interpolation or valTok.type == .quoted_value) {
                         allocator.free(value);
                     }
                     continue;
                 }
 
                 const entry = Entry{
-                    .key = try allocator.dupe(u8, key_text),
+                    .key = try allocator.dupe(u8, keyText),
                     .value = try allocator.dupe(u8, value),
-                    .line = key_line,
+                    .line = keyLine,
                 };
 
                 // Free allocated value if it was allocated (not a source slice)
-                if (val_tok.type == .interpolation or val_tok.type == .quoted_value) {
+                if (valTok.type == .interpolation or valTok.type == .quoted_value) {
                     allocator.free(value);
                 }
 
                 try result.entries.append(allocator, entry);
 
-                // skipToNewline only needed for non-interpolation values,
-                // since interpolation handler already consumed until newline/eof
-                if (val_tok.type != .interpolation) {
-                    skipToNewline(&lexer);
+                // Advance to the next line, unless the value token already
+                // consumed the line terminator (interpolation consumes until
+                // newline/eof; newline/eof values are already terminated).
+                // Without this guard, an empty `KEY=` line would swallow the
+                // following entry.
+                switch (valTok.type) {
+                    .interpolation, .newline, .eof => {},
+                    else => skipToNewline(&lexer),
                 }
             },
             else => {
@@ -242,7 +246,7 @@ fn addDiagnostic(
     if (d.file) |f| d.file = try allocator.dupe(u8, f);
     if (d.token) |t| d.token = try allocator.dupe(u8, t);
     if (d.suggestion) |s| d.suggestion = try allocator.dupe(u8, s);
-    try result.errors_list.append(allocator, d);
+    try result.errorsList.append(allocator, d);
 }
 
 fn removeQuotes(slice: []const u8, quote: u8) []const u8 {
@@ -343,6 +347,17 @@ test "parse empty value" {
 
     try std.testing.expectEqual(@as(usize, 1), result.entries.items.len);
     try std.testing.expectEqualStrings("", result.entries.items[0].value);
+}
+
+test "parse empty value does not swallow next entry" {
+    var result = try parse(std.testing.allocator, "EMPTY=\nPRESENT=value\n", .{});
+    defer result.deinit(std.testing.allocator);
+
+    try std.testing.expectEqual(@as(usize, 2), result.entries.items.len);
+    try std.testing.expectEqualStrings("EMPTY", result.entries.items[0].key);
+    try std.testing.expectEqualStrings("", result.entries.items[0].value);
+    try std.testing.expectEqualStrings("PRESENT", result.entries.items[1].key);
+    try std.testing.expectEqualStrings("value", result.entries.items[1].value);
 }
 
 test "parse value with spaces" {

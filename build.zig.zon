@@ -1,10 +1,10 @@
 .{
     .name = .env,
 
-    .version = "0.0.2",
+    .version = "0.0.3",
 
     .fingerprint = 0xf34542f97b00cb4c,
-    .minimum_zig_version = "0.16.0",
+    .minimum_zig_version = "0.17.0",
 
     .dependencies = .{},
 

@@ -70,7 +70,7 @@ pub fn fetchOs(self: *Env, key: []const u8) !?[]const u8 // copy OS → Env
 ### `set` / `setOs` / `merge`
 
 ```zig
-pub fn set(self: *Env, key: []const u8, value: []const u8) !void // respects export_to_env
+pub fn set(self: *Env, key: []const u8, value: []const u8) !void // respects exportToEnv
 pub fn setOs(self: *Env, key: []const u8, value: []const u8) !void // always syncs OsEnv
 pub fn merge(self: *Env, other: *const Env) !void
 ```
@@ -89,7 +89,7 @@ pub fn exportToOsEnv(self: *const Env) !void // Env → OsEnv.set
 ### `remove` / `unsetOs` / `clear`
 
 ```zig
-pub fn remove(self: *Env, key: []const u8) bool // also OsEnv.unset if export_to_env
+pub fn remove(self: *Env, key: []const u8) bool // also OsEnv.unset if exportToEnv
 pub fn unsetOs(self: *Env, key: []const u8) bool
 pub fn clear(self: *Env) void
 ```
@@ -101,7 +101,7 @@ pub fn clear(self: *Env) void
 ```zig
 pub fn count(self: *const Env) usize
 pub fn keys(self: *const Env) []const []const u8 // insertion order
-pub fn iterator(self: *const Env) Iterator // allocs Entry slice; free after use
+pub fn iterator(self: *const Env) Iterator // owns Entry slice; call deinit
 ```
 
 ## Serialization
@@ -111,8 +111,8 @@ pub fn iterator(self: *const Env) Iterator // allocs Entry slice; free after use
 Uses `helpers.needsQuoting`/`escapedForChar` (single source) via `Serializer`.
 
 ```zig
-pub fn serialize(self: *const Env) ![]const u8
-pub fn save(self: *const Env, path: []const u8) !void // via Writer/Serializer
+pub fn serialize(self: *const Env) ![]const u8 // honors config.sortKeys
+pub fn save(self: *const Env, path: []const u8) !void // via Writer/Serializer; honors config.sortKeys
 ```
 
 ## Scopes & Snapshots
@@ -156,7 +156,20 @@ try env.applyToEnvironMap(&map);
 
 ```zig
 pub fn clone(self: *const Env) !Env
-pub fn validate(self: *const Env, s: Schema) []ValidationError
+pub fn validate(self: *const Env, allocator: std.mem.Allocator, s: Schema) ![]ValidationError // owned slice; free with allocator.free
 pub fn toEnvironMap(self: *const Env, allocator: std.mem.Allocator) !std.process.Environ.Map
 pub fn applyToEnvironMap(self: *const Env, map: *std.process.Environ.Map) !void
+```
+
+### `tryGetBool` / `tryGetInt` / `tryGetFloat` / `tryGetEnum`
+
+Nullable getters return `null` for both missing keys and malformed values.
+The `tryGet*` variants distinguish the two: `null` when missing,
+`error.TypeMismatch` when present but invalid (never silently defaulted).
+
+```zig
+pub fn tryGetBool(self: *const Env, key: []const u8) !?bool
+pub fn tryGetInt(self: *const Env, comptime T: type, key: []const u8) !?T
+pub fn tryGetFloat(self: *const Env, comptime T: type, key: []const u8) !?T
+pub fn tryGetEnum(self: *const Env, comptime E: type, key: []const u8) !?E
 ```

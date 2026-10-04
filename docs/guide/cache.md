@@ -22,7 +22,7 @@ env.zig includes a built-in `Cache` for storing parsed values separately from en
 The cache is accessible via `env.cache`:
 
 ```zig
-var env = env_mod.Env.init(allocator, .{});
+var env = envMod.Env.init(allocator, .{});
 defer env.deinit();
 
 // Cache is ready to use

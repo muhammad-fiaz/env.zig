@@ -22,7 +22,7 @@ env.zig supports cloning entire environments and merging them for default value 
 Create an independent copy of an `Env` instance:
 
 ```zig
-var env = env_mod.Env.init(allocator, .{});
+var env = envMod.Env.init(allocator, .{});
 defer env.deinit();
 
 try env.set("APP_NAME", "MyApp");
@@ -43,13 +43,13 @@ try stdout.print("Cloned: {s}\n", .{cloned.get("PORT").?});     // 9090
 Merge another `Env` into the current one. Entries from the other `Env` override existing values:
 
 ```zig
-var env = env_mod.Env.init(allocator, .{});
+var env = envMod.Env.init(allocator, .{});
 defer env.deinit();
 
 try env.set("PORT", "8080");
 try env.set("APP_NAME", "MyApp");
 
-var defaults = env_mod.Env.init(allocator, .{});
+var defaults = envMod.Env.init(allocator, .{});
 defer defaults.deinit();
 
 try defaults.set("PORT", "3000");
@@ -71,7 +71,7 @@ try env.merge(&defaults);
 
 ```zig
 // Start with base config
-var config = env_mod.Env.init(allocator, .{});
+var config = envMod.Env.init(allocator, .{});
 defer config.deinit();
 try config.parseString(
     \\PORT=3000
@@ -80,17 +80,17 @@ try config.parseString(
 );
 
 // Load and merge user overrides (user values win)
-var user_config = env_mod.Env.init(allocator, .{});
-defer user_config.deinit();
-try user_config.load("user.env");
-try config.merge(&user_config);
+var userConfig = envMod.Env.init(allocator, .{});
+defer userConfig.deinit();
+try userConfig.load("user.env");
+try config.merge(&userConfig);
 ```
 
 ### Defaults Pattern
 
 ```zig
 // Apply defaults first, then override with actual values
-var env = env_mod.Env.init(allocator, .{});
+var env = envMod.Env.init(allocator, .{});
 defer env.deinit();
 
 // Set defaults
@@ -106,9 +106,9 @@ try env.load(".env");
 
 ```zig
 // Create base config for testing
-var base_config = env_mod.Env.init(allocator, .{});
-defer base_config.deinit();
-try base_config.parseString(
+var baseConfig = envMod.Env.init(allocator, .{});
+defer baseConfig.deinit();
+try baseConfig.parseString(
     \\APP_NAME=MyApp
     \\DATABASE_URL=postgres://localhost/prod_db
     \\DEBUG=false
@@ -116,12 +116,12 @@ try base_config.parseString(
 );
 
 // Clone for test environment
-var test_config = try base_config.clone();
-defer test_config.deinit();
+var testConfig = try baseConfig.clone();
+defer testConfig.deinit();
 
 // Override for testing
-try test_config.set("DATABASE_URL", "postgres://localhost/test_db");
-try test_config.set("DEBUG", "true");
+try testConfig.set("DATABASE_URL", "postgres://localhost/test_db");
+try testConfig.set("DEBUG", "true");
 ```
 
 ## See Also

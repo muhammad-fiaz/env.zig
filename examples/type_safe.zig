@@ -1,6 +1,6 @@
 const std = @import("std");
 const Io = std.Io;
-const env_mod = @import("env");
+const envMod = @import("env");
 
 const Mode = enum { debug, release, testing };
 
@@ -8,7 +8,7 @@ pub fn main(init: std.process.Init) !void {
     const io = init.io;
     const allocator = init.gpa;
 
-    var env = env_mod.Env.init(allocator, .{});
+    var env = envMod.Env.init(allocator, .{});
     defer env.deinit();
 
     try env.parseString(
@@ -21,9 +21,9 @@ pub fn main(init: std.process.Init) !void {
         \\
     );
 
-    var stdout_buffer: [0x2000]u8 = undefined;
-    var stdout_writer = Io.File.stdout().writer(io, &stdout_buffer);
-    const stdout = &stdout_writer.interface;
+    var stdoutBuffer: [0x2000]u8 = undefined;
+    var stdoutWriter = Io.File.stdout().writer(io, &stdoutBuffer);
+    const stdout = &stdoutWriter.interface;
 
     try stdout.print("=== Type-Safe Accessors Example ===\n\n", .{});
 
@@ -44,7 +44,7 @@ pub fn main(init: std.process.Init) !void {
 
     // getBool accepts true/false/yes/no/1/0/on/off case-insensitive
     for ([_][]const u8{ "true", "True", "yes", "1", "on", "false", "no", "0", "off", "maybe" }) |val| {
-        var tmp = env_mod.Env.init(allocator, .{});
+        var tmp = envMod.Env.init(allocator, .{});
         defer tmp.deinit();
         try tmp.set("K", val);
         try stdout.print("  getBool {s} -> {any}\n", .{ val, tmp.getBool("K") });
@@ -69,12 +69,23 @@ pub fn main(init: std.process.Init) !void {
     try stdout.print("getWithFallback MISSING -> {s}\n", .{env.getWithFallback("MISSING", "fallback")});
     try stdout.print("getWithFallback PORT -> {s}\n", .{env.getWithFallback("PORT", "3000")});
 
+    // tryGet* distinguishes missing (null) from invalid (error.TypeMismatch)
+    try stdout.print("tryGetInt MISSING -> {any} (null)\n", .{try env.tryGetInt(i32, "MISSING")});
+    try stdout.print("tryGetInt PORT -> {d}\n", .{(try env.tryGetInt(i32, "PORT")).?});
+    if (env.tryGetInt(i32, "MODE")) |_| {
+        try stdout.print("tryGetInt MODE unexpectedly succeeded\n", .{});
+    } else |err| {
+        try stdout.print("tryGetInt MODE -> {s} (invalid, not defaulted)\n", .{@errorName(err)});
+    }
+    try stdout.print("tryGetBool MISSING -> {any} (null)\n", .{try env.tryGetBool("MISSING")});
+    try stdout.print("tryGetEnum MODE -> {any}\n", .{try env.tryGetEnum(Mode, "MODE")});
+
     // contains / containsOs
     try stdout.print("contains PORT={} containsOs HOME={}\n", .{ env.contains("PORT"), env.containsOs("HOME") });
 
     // OS fallback display
-    try env_mod.OsEnv.set("TYPE_SAFE_OS_TEST", "from_os");
-    defer env_mod.OsEnv.unset("TYPE_SAFE_OS_TEST") catch {};
+    try envMod.OsEnv.set("TYPE_SAFE_OS_TEST", "from_os");
+    defer envMod.OsEnv.unset("TYPE_SAFE_OS_TEST") catch {};
     try stdout.print("getOs TYPE_SAFE_OS_TEST = {s}\n", .{env.getOs("TYPE_SAFE_OS_TEST").?});
 
     try stdout.flush();
