@@ -1,9 +1,8 @@
 const std = @import("std");
 
 /// Check if a string is a valid .env key.
-/// Valid keys start with a letter or underscore and contain only
-/// alphanumeric characters and underscores. Covers all targets
-/// (x86, x86_64, aarch64, 32/64-bit) uniformly — no arch-specific logic.
+/// Valid keys start with a letter or underscore, followed by
+/// letters, digits, or underscores.
 pub fn isValidKey(key: []const u8) bool {
     if (key.len == 0) return false;
     if (!std.ascii.isAlphabetic(key[0]) and key[0] != '_') return false;

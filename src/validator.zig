@@ -26,7 +26,7 @@ pub const validators = struct {
         return null;
     }
 
-    /// Value must be a valid boolean (true/false/yes/no/1/0).
+    /// Value must be a valid boolean (true/false/yes/no/1/0/on/off).
     pub fn boolean(value: []const u8) ?[]const u8 {
         if (value.len == 0) return "value must not be empty";
         if (value.len > 8) return "value must be a valid boolean (true/false/yes/no/1/0/on/off)";

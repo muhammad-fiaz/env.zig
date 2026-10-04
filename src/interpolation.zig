@@ -20,7 +20,7 @@ pub fn interpolate(
 
 fn lookupVar(name: []const u8, vars: *const std.StringHashMap([]const u8)) ?[]const u8 {
     if (vars.get(name)) |v| return v;
-    // OS fallback (POSIX getenv / Windows GetEnvironmentVariableW)
+    // OS fallback (POSIX getenv / Windows GetEnvironmentVariableW).
     return osEnv.OsEnv.get(name);
 }
 
@@ -31,11 +31,11 @@ const BraceParse = struct {
 };
 
 fn parseBrace(inner: []const u8) BraceParse {
-    // Name is first sequence of [A-Za-z_][A-Za-z0-9_]*
+    // Name is first sequence of [A-Za-z_][A-Za-z0-9_]*.
     var i: usize = 0;
     if (inner.len == 0) return .{ .name = inner, .op = null, .arg = null };
     if (!(std.ascii.isAlphabetic(inner[0]) or inner[0] == '_')) {
-        // Invalid start, treat whole as name (will be missing)
+        // Invalid start, treat whole as name (will be missing).
         return .{ .name = inner, .op = null, .arg = null };
     }
     i = 1;
@@ -48,7 +48,7 @@ fn parseBrace(inner: []const u8) BraceParse {
     if (rest.len >= 1 and (rest[0] == '-' or rest[0] == '+' or rest[0] == '?' or rest[0] == '=')) {
         return .{ .name = inner[0..i], .op = rest[0..1], .arg = rest[1..] };
     }
-    // No recognized operator, treat whole as literal missing
+    // No recognized operator, treat whole as literal missing.
     return .{ .name = inner, .op = null, .arg = null };
 }
 
@@ -72,7 +72,7 @@ fn interpolateImpl(
         if (value[i] == '$' and i + 1 < value.len and value[i + 1] == '{') {
             const refStart = i + 2;
             var refEnd = refStart;
-            // Handle nested ${} inside default values: find matching '}' with depth
+            // Handle nested ${} inside default values: find matching '}' with depth.
             var pos = refStart;
             var found: ?usize = null;
             var innerDepth: usize = 0;
@@ -94,14 +94,14 @@ fn interpolateImpl(
             if (found) |fe| {
                 refEnd = fe;
                 var inner = value[refStart..refEnd];
-                // Strip $env: / $env. prefix (PowerShell style) for terminal env compat
+                // Strip PowerShell-style $env: and $env. prefixes.
                 if (inner.len >= 4 and (std.mem.startsWith(u8, inner, "env:") or std.mem.startsWith(u8, inner, "env."))) {
                     inner = inner[4..];
                 }
                 i = refEnd + 1;
                 const parsed = parseBrace(inner);
 
-                // Circular check on the base name
+                // Circular check on the base name.
                 for (seenBuf.ptr[0..seenLen.*]) |s| {
                     if (std.mem.eql(u8, s, parsed.name)) return error.CircularDependency;
                 }
@@ -145,24 +145,24 @@ fn interpolateImpl(
                     const needAlt = if (std.mem.eql(u8, parsed.op.?, ":?")) !isNonempty else !isSet;
                     if (!needAlt) expanded = maybeVal.? else {
                         if (parsed.arg) |a| {
-                            // Expand error message as default (could also be considered error, but we return it)
+                            // ${VAR:?msg} expands to msg when the variable is missing or empty.
                             useDefault = true;
                             defaultArg = a;
                         } else {
-                            // No message, keep literal error? Return empty
+                            // Without a message, expand to empty.
                             useDefault = true;
                             defaultArg = "";
                         }
                     }
                 } else if (std.mem.eql(u8, parsed.op.?, ":=") or std.mem.eql(u8, parsed.op.?, "=")) {
-                    // := and = assign default if missing; we mimic :- behavior (no actual assign to map for now)
+                    // := and = behave like :- and - without persisting the assignment.
                     const needDefault = if (std.mem.eql(u8, parsed.op.?, ":=")) !isNonempty else !isSet;
                     if (!needDefault) expanded = maybeVal.? else {
                         useDefault = true;
                         defaultArg = parsed.arg orelse "";
                     }
                 } else {
-                    // Unknown operator, fallback to plain
+                    // Unknown operator, fallback to plain.
                     if (maybeVal) |v| expanded = v else keepLiteral = true;
                 }
 
@@ -170,7 +170,7 @@ fn interpolateImpl(
                     try result.appendSlice(allocator, value[startI..i]);
                 } else if (useDefault) {
                     const def = defaultArg orelse "";
-                    // Recursively interpolate the default/alt string itself
+                    // Recursively interpolate the default/alt string itself.
                     const resolvedDef = try interpolateImpl(
                         allocator,
                         def,
@@ -200,7 +200,7 @@ fn interpolateImpl(
                 i += 1;
             }
         } else if (value[i] == '$' and i + 5 < value.len and (std.mem.startsWith(u8, value[i + 1 ..], "env:") or std.mem.startsWith(u8, value[i + 1 ..], "env.")) and (value[i + 5] == '_' or std.ascii.isAlphabetic(value[i + 5]))) {
-            // $env:VAR or $env.VAR (PowerShell style)
+            // $env:VAR or $env.VAR (PowerShell style).
             const dollarPos = i;
             const varStart = i + 5;
             var varEnd = varStart;

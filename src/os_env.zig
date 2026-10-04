@@ -5,9 +5,7 @@ const nativeOs = builtin.os.tag;
 const unicode = std.unicode;
 const windows = std.os.windows;
 
-// ---------------------------------------------------------------------------
-// C / Windows bindings
-// ---------------------------------------------------------------------------
+// C and Windows bindings.
 extern "c" fn setenv(name: [*:0]const u8, value: [*:0]const u8, overwrite: c_int) c_int;
 extern "c" fn unsetenv(name: [*:0]const u8) c_int;
 
@@ -109,7 +107,7 @@ pub const OsEnv = struct {
                 while (block[ptr] != 0) : (ptr += 1) {}
                 const entryLen = ptr - start;
                 const entryW = block[start .. start + entryLen];
-                // Split at first '=' (skip leading '=' for drive vars)
+                // Split at first '=' (skip leading '=' for drive vars).
                 var eq: ?usize = null;
                 const searchStart: usize = if (entryW.len > 0 and entryW[0] == '=') 1 else 0;
                 for (entryW[searchStart..], searchStart..) |ch, idx| {
@@ -159,9 +157,9 @@ pub const OsEnv = struct {
         if (std.mem.indexOfScalar(u8, key, 0) != null) return error.InvalidKey;
     }
 
-    // ---- POSIX helpers — stack-first for efficiency (no alloc for typical keys) ----
+    // POSIX helpers. Short keys and values use stack buffers; longer ones fall back to the page allocator.
     fn getPosix(key: []const u8) ?[]const u8 {
-        // Fast stack path for keys < 512
+        // Fast stack path for keys < 512.
         var stackBuf: [512]u8 = undefined;
         const keyZ: [:0]const u8 = if (key.len < stackBuf.len) blk: {
             @memcpy(stackBuf[0..key.len], key);
@@ -170,9 +168,6 @@ pub const OsEnv = struct {
         } else blk: {
             const alloc = std.heap.page_allocator;
             const dup = alloc.dupeSentinel(u8, key, 0) catch return null;
-            // leak is avoided by using page_allocator and freeing after call via defer
-            // but for this branch we need to free after getenv; use errdefer not possible.
-            // Simplify: use page_allocator and free after
             break :blk dup;
         };
         // For stack path, no alloc to free; for heap path, free.
@@ -184,7 +179,7 @@ pub const OsEnv = struct {
 
     fn setPosix(key: []const u8, value: []const u8) !void {
         if (std.mem.indexOfScalar(u8, value, 0) != null) return error.InvalidValue;
-        // Stack for both key and value if small
+        // Stack for both key and value if small.
         var keyStack: [512]u8 = undefined;
         var valStack: [1024]u8 = undefined;
         const useKeyStack = key.len < keyStack.len;
@@ -218,7 +213,7 @@ pub const OsEnv = struct {
         if (ret != 0) return error.UnsetEnvFailed;
     }
 
-    // ---- Windows helpers ----
+    // Windows helpers.
     threadlocal var tlsBuf: [8192]u8 = undefined;
     threadlocal var tlsLen: usize = 0;
 
@@ -231,12 +226,10 @@ pub const OsEnv = struct {
         if (needed == 0) {
             const errCode = @backingInt(windows.GetLastError());
             if (errCode == 203) return null; // ERROR_ENVVAR_NOT_FOUND
-            // exists but empty
+            // Exists but empty.
             return "";
         }
-        // needed includes space for NUL? docs: if buffer too small, return required size including NUL.
-        // When we call with null, needed is size required including NUL.
-        // For actual data we need buffer of needed
+        // With a null buffer, the return value is the required size including the NUL terminator.
         var buf: [4096]u16 = undefined;
         if (needed <= buf.len) {
             SetLastError(0);
@@ -313,7 +306,7 @@ pub const Snapshot = struct {
     /// Restore environment to this snapshot state.
     /// Removes keys not in snapshot, restores/sets keys in snapshot.
     pub fn restore(self: *const Snapshot) !void {
-        // Collect current keys
+        // Collect current keys.
         var cur = try OsEnv.getAllAlloc(self.allocator);
         defer {
             var it = cur.iterator();
@@ -323,17 +316,17 @@ pub const Snapshot = struct {
             }
             cur.deinit();
         }
-        // Remove keys that were added after snapshot
+        // Remove keys that were added after snapshot.
         var curIt = cur.iterator();
         while (curIt.next()) |e| {
             if (!self.map.contains(e.key_ptr.*)) {
                 try OsEnv.unset(e.key_ptr.*);
             }
         }
-        // Set/restore snapshot keys
+        // Set/restore snapshot keys.
         var snapIt = self.map.iterator();
         while (snapIt.next()) |e| {
-            // Only set if different or missing
+            // Only set if different or missing.
             const curVal = OsEnv.get(e.key_ptr.*);
             if (curVal == null or !std.mem.eql(u8, curVal.?, e.value_ptr.*)) {
                 try OsEnv.set(e.key_ptr.*, e.value_ptr.*);
@@ -401,8 +394,7 @@ pub const Scope = struct {
             if (maybeVal) |v| {
                 try OsEnv.set(key, v);
             } else {
-                // Was not set originally -> unset
-                // Unset may fail if already missing (ok)
+                // Key did not exist before; remove it, ignoring errors if already absent.
                 OsEnv.unset(key) catch {};
             }
         }

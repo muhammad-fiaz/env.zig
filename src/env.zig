@@ -44,8 +44,7 @@ pub const Env = struct {
     /// Free all resources.
     pub fn deinit(self: *Env) void {
         self.cache.deinit();
-        // Keys are shared between entries and insertionOrder.
-        // Free values from entries, then free keys from insertionOrder only.
+        // Keys are shared with insertionOrder: free values here, keys below.
         var it = self.entries.iterator();
         while (it.next()) |entry| {
             self.allocator.free(entry.value_ptr.*);
@@ -88,7 +87,7 @@ pub const Env = struct {
             if (self.config.override or !self.entries.contains(entry.key)) {
                 const existing = self.entries.fetchRemove(entry.key);
                 if (existing) |kv| {
-                    // Reuse existing key pointer to keep insertionOrder stable
+                    // Reuse existing key pointer to keep insertionOrder stable.
                     self.allocator.free(kv.value);
                     const ownedValue = try self.allocator.dupe(u8, entry.value);
                     try self.entries.put(kv.key, ownedValue);
@@ -219,7 +218,7 @@ pub const Env = struct {
 
     fn parseBoolValue(val: []const u8) ?bool {
         const v = std.mem.trim(u8, val, " \t\r\n");
-        // Case-insensitive compare via lowercasing into small stack buffer
+        // Case-insensitive compare via lowercasing into small stack buffer.
         var buf: [16]u8 = undefined;
         if (v.len > buf.len) return null;
         for (v, 0..) |ch, i| buf[i] = std.ascii.toLower(ch);
@@ -377,10 +376,6 @@ pub const Env = struct {
         return s.validate(allocator, &self.entries);
     }
 
-    // -----------------------------------------------------------------------
-    // OS Environment Bridging (Windows / Linux / macOS)
-    // -----------------------------------------------------------------------
-
     /// Load all current OS environment variables into this Env.
     /// Existing keys are overwritten if `config.override` is true.
     pub fn loadOsEnv(self: *Env) !void {
@@ -508,10 +503,6 @@ pub const Env = struct {
     pub fn snapshotOs(self: *const Env) !osEnvMod.Snapshot {
         return try osEnvMod.OsEnv.snapshot(self.allocator);
     }
-
-    // -----------------------------------------------------------------------
-    // Temporary / Scoped Env (in-memory)
-    // -----------------------------------------------------------------------
 
     /// Scope for temporary in-memory overrides; restores on deinit.
     pub const EnvScope = struct {

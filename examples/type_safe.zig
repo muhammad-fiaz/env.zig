@@ -42,7 +42,7 @@ pub fn main(init: std.process.Init) !void {
     if (env.getFloat(f64, "RATIO")) |f| try stdout.print("getFloat RATIO = {d}\n", .{f});
     try stdout.print("getFloat PORT as f64 = {d}\n", .{env.getFloat(f64, "PORT").?});
 
-    // getBool accepts true/false/yes/no/1/0/on/off case-insensitive
+    // getBool accepts true/false/yes/no/1/0/on/off (case-insensitive).
     for ([_][]const u8{ "true", "True", "yes", "1", "on", "false", "no", "0", "off", "maybe" }) |val| {
         var tmp = envMod.Env.init(allocator, .{});
         defer tmp.deinit();
@@ -59,13 +59,13 @@ pub fn main(init: std.process.Init) !void {
         defer allocator.free(list);
         try stdout.print("getList HOSTS count={d}\n", .{list.len});
         for (list, 0..) |h, i| try stdout.print("  [{d}] {s}\n", .{ i, h });
-        // Note: list elements are slices into original value — no dupe needed, free only outer slice
+        // Note: list elements borrow the stored value; free only the outer slice.
     }
 
     // Empty list
     try stdout.print("getList EMPTY = {any} (null or empty)\n", .{env.getList(allocator, "EMPTY", ',')});
 
-    // require-style via getOrDefault helpers
+    // Fallback default (checks Env, then OS).
     try stdout.print("getWithFallback MISSING -> {s}\n", .{env.getWithFallback("MISSING", "fallback")});
     try stdout.print("getWithFallback PORT -> {s}\n", .{env.getWithFallback("PORT", "3000")});
 

@@ -43,7 +43,7 @@ pub const Serializer = struct {
         return try result.toOwnedSlice(allocator);
     }
 
-    /// Serialize with sorting and pretty formatting.
+    /// Serialize entries sorted by key.
     pub fn serializeSorted(
         allocator: std.mem.Allocator,
         entries: []const SerEntry,

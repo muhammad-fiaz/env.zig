@@ -1,7 +1,6 @@
 const std = @import("std");
 
-/// Efficient cache for parsed .env values. Reuses `std.StringHashMap` directly
-/// without wrapper struct to avoid extra indirection and allocation.
+/// Cache for parsed .env values, backed directly by `std.StringHashMap`.
 pub const Cache = struct {
     map: std.StringHashMap([]const u8),
     allocator: std.mem.Allocator,
@@ -22,7 +21,7 @@ pub const Cache = struct {
         self.map.deinit();
     }
 
-    /// Put a value into the cache — overwrites existing key efficiently.
+    /// Put a value into the cache, overwriting any existing key.
     pub fn put(self: *Cache, key: []const u8, value: []const u8) !void {
         const ownedKey = try self.allocator.dupe(u8, key);
         errdefer self.allocator.free(ownedKey);

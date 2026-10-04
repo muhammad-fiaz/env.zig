@@ -89,7 +89,7 @@ pub fn parse(
             .key => {
                 var keyText = tok.slice;
                 var keyLine = tok.line;
-                // Handle `export KEY=value` prefix (shell compatibility)
+                // Handle `export KEY=value` prefix (shell compatibility).
                 if (std.mem.eql(u8, keyText, "export")) {
                     var nxt = lexer.next();
                     while (nxt.type == .whitespace) nxt = lexer.next();
@@ -151,7 +151,7 @@ pub fn parse(
                     .single_quoted_value => removeQuotes(valTok.slice, '\''),
                     .backtick_quoted_value => removeQuotes(valTok.slice, '`'),
                     .interpolation => blk: {
-                        // Interpolation may be followed by more text (e.g. ${GREETING} world)
+                        // Interpolation may be followed by more text (e.g. ${GREETING} world).
                         var fullValue: std.ArrayList(u8) = .empty;
                         errdefer fullValue.deinit(allocator);
                         try fullValue.appendSlice(allocator, valTok.slice);
@@ -197,7 +197,7 @@ pub fn parse(
                         .suggestion = "set a value or use allowEmpty = true",
                     });
                     if (options.config.strict) return error.ParseError;
-                    // Value already consumed (newline/eof), no need to skip — just continue to next entry
+                    // Value already consumed (newline/eof), no need to skip.
                     // Free allocated value if needed
                     if (valTok.type == .interpolation or valTok.type == .quoted_value) {
                         allocator.free(value);
@@ -211,7 +211,7 @@ pub fn parse(
                     .line = keyLine,
                 };
 
-                // Free allocated value if it was allocated (not a source slice)
+                // Free allocated value if it was allocated (not a source slice).
                 if (valTok.type == .interpolation or valTok.type == .quoted_value) {
                     allocator.free(value);
                 }
@@ -381,10 +381,8 @@ test "parse various escape sequences" {
     defer result.deinit(std.testing.allocator);
 
     try std.testing.expectEqual(@as(usize, 1), result.entries.items.len);
-    // In Zig source: \\ becomes \ in the string literal
-    // So the input string is: KEY="tab\there\\done"
-    // After escape processing: \t → tab, \\ → \
-    // Result: tab<tab>here\done
+    // Input after Zig string unescaping is KEY="tab\there\\done";
+    // \t decodes to a tab and \\ decodes to a backslash.
     try std.testing.expectEqualStrings("tab\there\\done", result.entries.items[0].value);
 }
 

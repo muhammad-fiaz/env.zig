@@ -41,7 +41,7 @@ pub fn main(init: std.process.Init) !void {
     try stdout.print("Exported EXPORT_TEST to OS: {s}\n", .{envMod.OsEnv.get("EXPORT_TEST").?});
     envMod.OsEnv.unset("EXPORT_TEST") catch {};
 
-    // Temporary SCOPED OS env ($env style)
+    // Temporary scoped OS env ($env style)
     try stdout.print("\n--- Scope (temporary $env) ---\n", .{});
     try stdout.print("Before scope: ENV_ZIG_DEMO_OS = {s}\n", .{envMod.OsEnv.get("ENV_ZIG_DEMO_OS").?});
     {
