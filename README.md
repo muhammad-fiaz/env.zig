@@ -26,7 +26,7 @@
 
 </div>
 
-`env.zig` is a modern, high-performance `.env` library for Zig, providing everything needed to manage application configuration — `.env` parsing, variable interpolation with OS fallback, schema validation, serialization, type-safe accessors, and native OS environment bridging for Windows, Linux and macOS.
+`env.zig` is a modern, high-performance environment configuration library for Zig, providing `.env` parsing, variable interpolation with OS environment fallback, schema validation, serialization, type-safe accessors, and native process environment support across Windows, Linux, and macOS.
 
 > [!TIP]
 > If you build with env.zig, make sure to give it a star. ⭐
