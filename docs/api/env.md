@@ -28,13 +28,20 @@ pub fn deinit(self: *Env) void
 ## Loading (transactional)
 
 `parseString` and `reload` leave the store unchanged when strict parsing fails.
+`reload` stages into a fresh store and swaps, so even mid-commit
+allocation failures preserve the old entries.
 
 ```zig
 pub fn load(self: *Env, path: []const u8) !void
-pub fn parseString(self: *Env, source: []const u8) !void
+pub fn parseString(self: *Env, source: []const u8) !void // borrows source; dupes kept entries
 pub fn loadMany(self: *Env, paths: []const []const u8) !void
 pub fn reload(self: *Env, path: []const u8) !void
 ```
+
+Ownership: file bytes are read into library-owned buffers and freed
+internally; `parseString` callers keep owning `source`. For full caller
+ownership of the bytes and the `Io` lifetime, read explicitly with
+`std.Io` and call `parseString` (see File I/O example).
 
 ## Reading (in-memory only)
 
@@ -98,8 +105,15 @@ pub fn applyToEnvironMap(self: *const Env, map: *std.process.Environ.Map) !void
 pub fn count(self: *const Env) usize
 pub fn keys(self: *const Env) []const []const u8 // borrowed, insertion order
 pub fn iterator(self: *const Env) Iterator // borrowed, no allocation
-pub fn serialize(self: *const Env) ![]const u8
+pub fn serialize(self: *const Env) ![]const u8 // owned; caller frees
 pub fn save(self: *const Env, path: []const u8) !void
+```
+
+Ownership: `serialize` returns caller-owned bytes; `save` frees its
+internal buffer itself. For full caller ownership, `serialize` then
+`std.Io.Dir.writeFile` explicitly (see File I/O example).
+
+```zig
 pub fn clone(self: *const Env) !Env
 pub fn validate(self: *const Env, allocator: std.mem.Allocator, s: Schema) ![]ValidationError
 pub const EnvScope = struct { pub fn set(...); pub fn unset(...); };

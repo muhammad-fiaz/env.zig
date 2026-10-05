@@ -112,21 +112,17 @@ pub const Env = struct {
     }
 
     /// Transactional reload: on failure the old state is preserved.
+    /// Stages into a fresh store and swaps only after full success,
+    /// so even mid-commit allocation failures keep the old entries.
     pub fn reload(self: *Env, path: []const u8) !void {
         try self.config.validate();
         const content = try readContent(self.allocator, path);
         defer self.allocator.free(content);
-        var result = try parserMod.parse(self.allocator, content, .{ .config = self.config });
-        defer result.deinit(self.allocator);
-        // Only clear after successful parse.
-        self.clear();
-        errdefer self.clear();
-        for (result.entries.items) |entry| {
-            if (self.config.override or !self.entries.contains(entry.key)) {
-                try self.putCommitted(entry.key, entry.value);
-            }
-        }
-        if (self.config.interpolate) try self.resolveInterpolation();
+        var staged = Env.init(self.allocator, self.config);
+        errdefer staged.deinit();
+        try staged.parseString(content);
+        std.mem.swap(Env, self, &staged);
+        staged.deinit(); // frees the previous store now held by staged
     }
 
     /// In-memory only. Validates `.env` key shape, rejects NUL values.
