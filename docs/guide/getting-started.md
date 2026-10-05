@@ -324,6 +324,22 @@ cache.clear();
 const output = try env.serialize();
 defer allocator.free(output);
 
-// Save to file
+// Save to file (implicit IO: library owns the read/write setup)
 try env.save("output.env");
+```
+
+For full ownership, do the file IO explicitly with `std.Io` and keep
+only parsing/serialization in the library (no `load`/`save` used):
+
+```zig
+// Explicit read: caller owns the bytes and the io lifetime.
+const dir = Io.Dir.cwd();
+const raw = try dir.readFileAlloc(io, ".env", allocator, .limited(8192));
+defer allocator.free(raw);
+try env.parseString(raw);
+
+// Explicit write: caller owns the bytes and the io lifetime.
+const out = try env.serialize();
+defer allocator.free(out);
+try dir.writeFile(io, .{ .sub_path = ".env", .data = out });
 ```

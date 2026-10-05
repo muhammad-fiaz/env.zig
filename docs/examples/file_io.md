@@ -55,6 +55,32 @@ pub fn main(init: std.process.Init) !void {
     }
     try stdout.print("Saved to .env.demo.tmp\n", .{});
 
+    // 2b) Explicit read: caller-owned std.Io, no load() used.
+    // The caller owns the file bytes and decides when to parse them.
+    var explicit = envMod.Env.init(allocator, .{});
+    defer explicit.deinit();
+    {
+        const dir = Io.Dir.cwd();
+        const raw = try dir.readFileAlloc(io, ".env.demo.tmp", allocator, .limited(8192));
+        defer allocator.free(raw);
+        try stdout.print("Explicit read {d} bytes from .env.demo.tmp\n", .{raw.len});
+        try explicit.parseString(raw);
+    }
+    try stdout.print("Explicit parsed PORT={s}\n", .{explicit.get("PORT").?});
+
+    // 2c) Explicit write: serialize to caller-owned bytes, then write
+    // with the caller's io. No save() used.
+    {
+        const out = try explicit.serialize();
+        defer allocator.free(out);
+        const dir = Io.Dir.cwd();
+        try dir.writeFile(io, .{ .sub_path = ".env.explicit.tmp", .data = out });
+        defer dir.deleteFile(io, ".env.explicit.tmp") catch {};
+        const check = try dir.readFileAlloc(io, ".env.explicit.tmp", allocator, .limited(8192));
+        defer allocator.free(check);
+        try stdout.print("Explicit write round-trip equal={}\n", .{std.mem.eql(u8, out, check)});
+    }
+
     var env2 = envMod.Env.init(allocator, .{});
     defer env2.deinit();
     // Correct error handling: FileNotFound vs IoError
@@ -129,6 +155,9 @@ zig-out/bin/file_io_example
 
 Parsed 3 entries from string
 Saved to .env.demo.tmp
+Explicit read 41 bytes from .env.demo.tmp
+Explicit parsed PORT=8080
+Explicit write round-trip equal=true
 Reloaded PORT=8080
 loadMany override PORT=9090 NEW_KEY=from_b
 No-override PORT stays 1111 (expected 1111)
@@ -162,6 +191,28 @@ With `override = false` the existing value wins:
 
 ```env
 PORT=1111
+```
+
+## Implicit vs Explicit IO
+
+Implicit (`load`/`save`) — the library owns the `std.Io` setup:
+
+```zig
+try env.save(".env.demo.tmp");
+try env2.load(".env.demo.tmp");
+```
+
+Explicit (`std.Io` + `parseString`/`serialize`) — the caller owns the
+file bytes, buffers, and `io` lifetime; the library never sees the file:
+
+```zig
+const raw = try dir.readFileAlloc(io, ".env.demo.tmp", allocator, .limited(8192));
+defer allocator.free(raw);
+try explicit.parseString(raw);
+
+const out = try explicit.serialize();
+defer allocator.free(out);
+try dir.writeFile(io, .{ .sub_path = ".env.explicit.tmp", .data = out });
 ```
 
 ## See Also

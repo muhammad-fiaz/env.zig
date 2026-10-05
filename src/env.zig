@@ -49,16 +49,21 @@ pub const Env = struct {
     /// strict mode: the existing store is unchanged when parsing fails.
     pub fn load(self: *Env, path: []const u8) !void {
         try self.config.validate();
+        const content = try readContent(self.allocator, path);
+        defer self.allocator.free(content);
+        try self.parseString(content);
+    }
+
+    /// Shared file-read + error-map used by `load` and `reload`.
+    fn readContent(allocator: std.mem.Allocator, path: []const u8) ![]const u8 {
         const dir = std.Io.Dir.cwd();
         var ioThreaded: std.Io.Threaded = .init_single_threaded;
-        const content = dir.readFileAlloc(ioThreaded.io(), path, self.allocator, .unlimited) catch |err| switch (err) {
+        return dir.readFileAlloc(ioThreaded.io(), path, allocator, .unlimited) catch |err| switch (err) {
             error.FileNotFound => return error.FileNotFound,
             error.AccessDenied => return error.PermissionDenied,
             error.OutOfMemory => return error.OutOfMemory,
             else => return error.IoError,
         };
-        defer self.allocator.free(content);
-        try self.parseString(content);
     }
 
     /// Parse a string transactionally: strict errors leave `self` unchanged.
@@ -109,14 +114,7 @@ pub const Env = struct {
     /// Transactional reload: on failure the old state is preserved.
     pub fn reload(self: *Env, path: []const u8) !void {
         try self.config.validate();
-        const dir = std.Io.Dir.cwd();
-        var ioThreaded: std.Io.Threaded = .init_single_threaded;
-        const content = dir.readFileAlloc(ioThreaded.io(), path, self.allocator, .unlimited) catch |err| switch (err) {
-            error.FileNotFound => return error.FileNotFound,
-            error.AccessDenied => return error.PermissionDenied,
-            error.OutOfMemory => return error.OutOfMemory,
-            else => return error.IoError,
-        };
+        const content = try readContent(self.allocator, path);
         defer self.allocator.free(content);
         var result = try parserMod.parse(self.allocator, content, .{ .config = self.config });
         defer result.deinit(self.allocator);
@@ -304,21 +302,26 @@ pub const Env = struct {
         return .{ .env = self, .index = 0 };
     }
 
-    pub fn serialize(self: *const Env) ![]const u8 {
+    /// Shared insertion-order entry collection used by `serialize`
+    /// and `save` so both encode the exact same bytes.
+    fn collectSerEntries(self: *const Env) !std.ArrayList(serializerMod.SerEntry) {
         var entries: std.ArrayList(serializerMod.SerEntry) = .empty;
-        defer entries.deinit(self.allocator);
+        errdefer entries.deinit(self.allocator);
         for (self.insertionOrder.items) |key| {
             if (self.entries.get(key)) |val| try entries.append(self.allocator, .{ .key = key, .value = val });
         }
+        return entries;
+    }
+
+    pub fn serialize(self: *const Env) ![]const u8 {
+        var entries = try self.collectSerEntries();
+        defer entries.deinit(self.allocator);
         if (self.config.sortKeys) return serializerMod.Serializer.serializeSorted(self.allocator, entries.items, self.config);
         return serializerMod.Serializer.serialize(self.allocator, entries.items, self.config);
     }
     pub fn save(self: *const Env, path: []const u8) !void {
-        var entries: std.ArrayList(serializerMod.SerEntry) = .empty;
+        var entries = try self.collectSerEntries();
         defer entries.deinit(self.allocator);
-        for (self.insertionOrder.items) |key| {
-            if (self.entries.get(key)) |val| try entries.append(self.allocator, .{ .key = key, .value = val });
-        }
         try writerMod.Writer.writeToFile(self.allocator, path, entries.items, self.config);
     }
 

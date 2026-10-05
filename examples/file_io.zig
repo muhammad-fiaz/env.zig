@@ -32,6 +32,31 @@ pub fn main(init: std.process.Init) !void {
     }
     try stdout.print("Saved to .env.demo.tmp\n", .{});
 
+    // 2b) Explicit read: caller-owned std.Io, no load() used.
+    // The caller owns the file bytes and decides when to parse them.
+    var explicit = envMod.Env.init(allocator, .{});
+    defer explicit.deinit();
+    {
+        const dir = Io.Dir.cwd();
+        const raw = try dir.readFileAlloc(io, ".env.demo.tmp", allocator, .limited(8192));
+        defer allocator.free(raw);
+        try stdout.print("Explicit read {d} bytes from .env.demo.tmp\n", .{raw.len});
+        try explicit.parseString(raw);
+    }
+    try stdout.print("Explicit parsed PORT={s}\n", .{explicit.get("PORT").?});
+
+    // 2c) Explicit write: serialize to caller-owned bytes, then write
+    // with the caller's io. No save() used.
+    {
+        const out = try explicit.serialize();
+        defer allocator.free(out);
+        const dir = Io.Dir.cwd();
+        try dir.writeFile(io, .{ .sub_path = ".env.explicit.tmp", .data = out });
+        defer dir.deleteFile(io, ".env.explicit.tmp") catch {};
+        const check = try dir.readFileAlloc(io, ".env.explicit.tmp", allocator, .limited(8192));
+        defer allocator.free(check);
+        try stdout.print("Explicit write round-trip equal={}\n", .{std.mem.eql(u8, out, check)});
+    }
     var env2 = envMod.Env.init(allocator, .{});
     defer env2.deinit();
     // Correct error handling: FileNotFound vs IoError
