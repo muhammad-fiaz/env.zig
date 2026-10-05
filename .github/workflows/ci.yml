@@ -2,32 +2,32 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, dev]
   pull_request:
-    branches: [main]
+    branches: [main, dev]
 
 permissions:
   contents: read
 
 jobs:
   test:
-    name: Test (Zig ${{ matrix.zig-version }})
+    name: Test (Zig 0.17.0, ${{ matrix.optimize }})
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        zig-version: ['0.16.0']
+        optimize: ['Debug', 'ReleaseFast']
     steps:
       - uses: actions/checkout@v7
 
       - uses: mlugg/setup-zig@v2
         with:
-          version: ${{ matrix.zig-version }}
+          version: '0.17.0'
 
-      - name: Build
-        run: zig build
+      - name: Build (${{ matrix.optimize }})
+        run: zig build -Doptimize=${{ matrix.optimize }}
 
-      - name: Test
-        run: zig build test --summary all
+      - name: Test (${{ matrix.optimize }})
+        run: zig build test --summary all -Doptimize=${{ matrix.optimize }}
 
   lint:
     name: Lint
@@ -37,10 +37,39 @@ jobs:
 
       - uses: mlugg/setup-zig@v2
         with:
-          version: '0.16.0'
+          version: '0.17.0'
 
       - name: Check formatting
-        run: zig fmt --check src/
+        run: zig fmt --check .
 
-      - name: Build
-        run: zig build -Doptimize=ReleaseSafe
+      - name: Build docs
+        run: zig build docs
+
+  examples:
+    name: Examples
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: '0.17.0'
+
+      - name: Run all examples
+        run: zig build example
+
+  cross:
+    name: Cross-compile (${{ matrix.target }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target: ['aarch64-linux', 'x86_64-windows', 'aarch64-macos', 'x86-windows', 'x86-linux']
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: '0.17.0'
+
+      - name: Build for ${{ matrix.target }}
+        run: zig build -Dtarget=${{ matrix.target }}

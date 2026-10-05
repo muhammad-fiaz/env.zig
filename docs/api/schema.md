@@ -30,10 +30,11 @@ Create a new schema from field definitions.
 ### `Schema.validate`
 
 ```zig
-pub fn validate(self: Schema, vars: *const std.StringHashMap([]const u8)) []ValidationError
+pub fn validate(self: Schema, allocator: std.mem.Allocator, vars: *const std.StringHashMap([]const u8)) ![]ValidationError
 ```
 
-Validate a set of key-value pairs against this schema.
+Validate a set of key-value pairs against this schema. Returns an owned
+slice; free it with `allocator.free` when done.
 
 ## FieldDef
 
@@ -41,9 +42,9 @@ Validate a set of key-value pairs against this schema.
 pub const FieldDef = struct {
     key: []const u8,
     required: bool = true,
-    default_value: ?[]const u8 = null,
-    default_fn: ?DefaultFn = null,
-    validators_list: []const ValidatorFn = &.{},
+    defaultValue: ?[]const u8 = null,
+    defaultFn: ?DefaultFn = null,
+    validatorsList: []const ValidatorFn = &.{},
     description: ?[]const u8 = null,
 };
 ```
@@ -52,9 +53,9 @@ pub const FieldDef = struct {
 |-------|------|---------|-------------|
 | `key` | `[]const u8` | — | The key name |
 | `required` | `bool` | `true` | Whether the field is required |
-| `default_value` | `?[]const u8` | `null` | Default value if missing |
-| `default_fn` | `?DefaultFn` | `null` | Default value provider function |
-| `validators_list` | `[]const ValidatorFn` | `&.{}` | Validators to run |
+| `defaultValue` | `?[]const u8` | `null` | Default value if missing |
+| `defaultFn` | `?DefaultFn` | `null` | Default value provider function |
+| `validatorsList` | `[]const ValidatorFn` | `&.{}` | Validators to run |
 | `description` | `?[]const u8` | `null` | Description for error messages |
 
 ## ValidationError

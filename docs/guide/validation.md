@@ -55,33 +55,33 @@ Each validation result has a `level` field:
 ## Schema Definition
 
 ```zig
-const env_mod = @import("env");
+const envMod = @import("env");
 
-const schema = env_mod.schema.Schema{
+const schema = envMod.schema.Schema{
     .fields = &.{
         .{
             .key = "DATABASE_URL",
             .required = true,
-            .validators_list = &.{ env_mod.validator.validators.required, env_mod.validator.validators.url },
+            .validatorsList = &.{ envMod.validator.validators.required, envMod.validator.validators.url },
             .description = "Database connection URL",
         },
         .{
             .key = "PORT",
             .required = true,
-            .validators_list = &.{ env_mod.validator.validators.required, env_mod.validator.validators.integer },
+            .validatorsList = &.{ envMod.validator.validators.required, envMod.validator.validators.integer },
             .description = "Server port",
         },
         .{
             .key = "LOG_LEVEL",
             .required = false,
-            .default_value = "info",
-            .validators_list = &.{env_mod.validator.validators.oneOf(&.{ "debug", "info", "warn", "error" })},
+            .defaultValue = "info",
+            .validatorsList = &.{envMod.validator.validators.oneOf(&.{ "debug", "info", "warn", "error" })},
             .description = "Logging level",
         },
         .{
             .key = "API_KEY",
             .required = false,
-            .validators_list = &.{env_mod.validator.validators.required},
+            .validatorsList = &.{envMod.validator.validators.required},
             .description = "API secret key",
         },
     },
@@ -91,42 +91,43 @@ const schema = env_mod.schema.Schema{
 ## Running Validation
 
 ```zig
-const errs = env.validate(schema);
+const errs = try env.validate(allocator, schema);
+defer allocator.free(errs);
 
-var has_errors = false;
-var has_warnings = false;
+var hasErrors = false;
+var hasWarnings = false;
 
 for (errs) |err| {
     if (err.level == .err) {
-        if (!has_errors) {
+        if (!hasErrors) {
             try stdout.print("Errors:\n", .{});
-            has_errors = true;
+            hasErrors = true;
         }
         try stdout.print("  [ERROR] {s}: {s}\n", .{ err.key, err.message });
     } else {
-        if (!has_warnings) {
+        if (!hasWarnings) {
             try stdout.print("\nWarnings:\n", .{});
-            has_warnings = true;
+            hasWarnings = true;
         }
         try stdout.print("  [WARN]  {s}: {s}\n", .{ err.key, err.message });
     }
 }
 
-if (!has_errors and !has_warnings) {
+if (!hasErrors and !hasWarnings) {
     try stdout.print("Validation passed!\n", .{});
 }
 ```
 
 ## Default Values
 
-Fields with `default_value` or `default_fn` are auto-populated if missing:
+Fields with `defaultValue` or `defaultFn` are auto-populated if missing:
 
 ```zig
 .{
     .key = "TIMEOUT",
     .required = false,
-    .default_value = "30",
-    .validators_list = &.{env_mod.validator.validators.integer},
+    .defaultValue = "30",
+    .validatorsList = &.{envMod.validator.validators.integer},
 },
 ```
 

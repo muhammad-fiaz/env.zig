@@ -1,13 +1,13 @@
 ---
 title: Cache
-description: Learn how to use the built-in cache in env.zig for storing parsed key-value pairs separately from environment entries.
+description: Learn how to use the standalone Cache in env.zig for storing parsed key-value pairs separately from environment entries.
 head:
   - - meta
     - property: og:title
       content: "Cache | env.zig"
   - - meta
     - name: description
-      content: Learn how to use the built-in cache in env.zig for storing parsed key-value pairs separately from environment entries.
+      content: Learn how to use the standalone Cache in env.zig for storing parsed key-value pairs separately from environment entries.
   - - meta
     - name: keywords
       content: "zig, env, cache, storage, key-value, env.zig"
@@ -15,18 +15,18 @@ head:
 
 # Cache
 
-env.zig includes a built-in `Cache` for storing parsed values separately from environment entries.
+env.zig provides a standalone `Cache` for storing values separately from
+`Env` entries. `Env` no longer owns a cache; use `Cache` directly when you
+need memoization without polluting the environment store.
 
-## Accessing the Cache
-
-The cache is accessible via `env.cache`:
+## Standalone Cache
 
 ```zig
-var env = env_mod.Env.init(allocator, .{});
+var env = envMod.Env.init(allocator, .{});
 defer env.deinit();
 
-// Cache is ready to use
-_ = env.cache;
+var cache = envMod.Cache.init(allocator);
+defer cache.deinit();
 ```
 
 ## Basic Operations
@@ -34,10 +34,10 @@ _ = env.cache;
 ### Put & Get
 
 ```zig
-try env.cache.put("cached_token", "abc123");
-try env.cache.put("cached_config", "{ \"timeout\": 30 }");
+try cache.put("cached_token", "abc123");
+try cache.put("cached_config", "{ \"timeout\": 30 }");
 
-if (env.cache.get("cached_token")) |token| {
+if (cache.get("cached_token")) |token| {
     try stdout.print("Token: {s}\n", .{token});
 }
 ```
@@ -45,7 +45,7 @@ if (env.cache.get("cached_token")) |token| {
 ### Check Existence
 
 ```zig
-if (env.cache.contains("cached_token")) {
+if (cache.contains("cached_token")) {
     try stdout.print("Token is cached\n", .{});
 }
 ```
@@ -54,16 +54,16 @@ if (env.cache.contains("cached_token")) {
 
 ```zig
 // Remove single entry
-_ = env.cache.remove("cached_token");
+_ = cache.remove("cached_token");
 
 // Clear all cache entries
-env.cache.clear();
+cache.clear();
 ```
 
 ### Count Entries
 
 ```zig
-const count = env.cache.count();
+const count = cache.count();
 try stdout.print("Cache size: {d}\n", .{count});
 ```
 
@@ -74,17 +74,20 @@ Cache entries are **separate** from environment entries:
 ```zig
 try env.set("API_KEY", "secret123");
 
+var cache2 = envMod.Cache.init(allocator);
+defer cache2.deinit();
+
 // Cache is empty
-try std.testing.expectEqual(@as(usize, 0), env.cache.count());
+try std.testing.expectEqual(@as(usize, 0), cache2.count());
 
 // Add to cache
-try env.cache.put("api_key_hash", "abc123");
+try cache2.put("api_key_hash", "abc123");
 
 // Environment still has original entry
 try std.testing.expectEqualStrings("secret123", env.get("API_KEY").?);
 
 // Cache has its own entry
-try std.testing.expectEqualStrings("abc123", env.cache.get("api_key_hash").?);
+try std.testing.expectEqualStrings("abc123", cache2.get("api_key_hash").?);
 ```
 
 ## Use Cases
@@ -93,14 +96,14 @@ try std.testing.expectEqualStrings("abc123", env.cache.get("api_key_hash").?);
 
 ```zig
 // Cache parsed results of complex values
-if (env.cache.get("parsed_config")) |config| {
+if (cache.get("parsed_config")) |config| {
     // Use cached version
     return config;
 }
 
 // Parse and cache
 const parsed = try parseComplexValue(env.get("COMPLEX_CONFIG").?);
-try env.cache.put("parsed_config", parsed);
+try cache.put("parsed_config", parsed);
 return parsed;
 ```
 
@@ -108,8 +111,8 @@ return parsed;
 
 ```zig
 // Store computation results without polluting env entries
-try env.cache.put("db_pool_size", "10");
-try env.cache.put("db_connection_timeout", "30");
+try cache.put("db_pool_size", "10");
+try cache.put("db_connection_timeout", "30");
 ```
 
 ## See Also

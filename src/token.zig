@@ -9,15 +9,15 @@ pub const TokenType = enum {
     /// An unquoted value (e.g., value).
     value,
     /// A double-quoted value (e.g., "value").
-    quoted_value,
+    quotedValue,
     /// A single-quoted value (e.g., 'value').
-    single_quoted_value,
+    singleQuotedValue,
     /// A backtick-quoted value (e.g., `value`).
-    backtick_quoted_value,
+    backtickQuotedValue,
     /// A comment line starting with #.
     comment,
     /// An inline comment after a value.
-    inline_comment,
+    inlineComment,
     /// A newline character.
     newline,
     /// End of file.
@@ -25,7 +25,7 @@ pub const TokenType = enum {
     /// An interpolation reference (e.g., ${KEY}).
     interpolation,
     /// An escape sequence (e.g., \n, \t).
-    escape_sequence,
+    escapeSequence,
     /// A whitespace character.
     whitespace,
 };

@@ -20,7 +20,7 @@ head:
 ### Add to your project
 
 ```bash
-zig fetch https://github.com/muhammad-fiaz/env.zig/archive/refs/tags/0.0.2.tar.gz
+zig fetch https://github.com/muhammad-fiaz/env.zig/archive/refs/tags/0.0.3.tar.gz
 ```
 
 Then add to your `build.zig`:
@@ -44,13 +44,13 @@ zig build example # Run examples
 ```zig
 const std = @import("std");
 const Io = std.Io;
-const env_mod = @import("env");
+const envMod = @import("env");
 
 pub fn main(init: std.process.Init) !void {
     const io = init.io;
     const allocator = init.gpa;
 
-    var env = env_mod.Env.init(allocator, .{});
+    var env = envMod.Env.init(allocator, .{});
     defer env.deinit();
 
     // Load from file — handles export prefix, quotes, inline comments
@@ -59,7 +59,7 @@ pub fn main(init: std.process.Init) !void {
     try env.parseString("HOST=localhost\nPORT=8080\n");
 
     // Read values with type-safe accessors + OS fallback
-    const host = env.getOs("HOST") orelse "localhost"; // Env → OsEnv (getenv/GetEnvironmentVariableW)
+    const host = env.getRuntime("HOST") orelse "localhost"; // Env → runtime (getenv/GetEnvironmentVariableW)
     const port = env.getInt(u16, "PORT") orelse 3000;
     const debug = env.getBool("DEBUG") orelse false;
 
@@ -74,28 +74,28 @@ pub fn main(init: std.process.Init) !void {
         std.debug.print("HOST exists\n", .{});
     }
 
-    // Delete entries
-    _ = env.remove("DEBUG");
+    // Delete entries (!bool; export failures are returned)
+    _ = try env.remove("DEBUG");
 
-    // OS bridging (Windows/Linux/macOS via std.c / kernel32)
-    try env.loadOsEnvIfMissing(); // import OS vars only if missing
-    try env.loadOsEnvWithPrefix("APP_"); // APP_PORT=8080 → PORT=8080
-    try env.exportToOsEnv(); // push to process env for children
-    const with_default = env.getWithFallback("PORT", "3000");
-    const required = try env.require("DATABASE_URL");
+    // OS bridging (Windows/Linux/macOS via std.process.Environ + minimal set/unset)
+    try env.loadRuntimeIfMissing(); // import OS vars only if missing
+    try env.loadRuntimeWithPrefix("APP_"); // APP_PORT=8080 → PORT=8080
+    try env.exportToRuntime(); // push to process env for children
+    const withDefault = env.getWithFallback("PORT", "3000");
+    const required = try env.requireRuntime("DATABASE_URL");
 
     // Temporary $env isolation for tests
     {
-        var scope = env_mod.Scope.init(allocator);
+        var scope = try runtime.scope(allocator);
         defer scope.deinit();
         try scope.set("TMP", "temporary");
     }
 
     // Print to stdout
-    var stdout_buffer: [0x100]u8 = undefined;
-    var stdout_writer = Io.File.stdout().writer(io, &stdout_buffer);
-    const stdout = &stdout_writer.interface;
-    try stdout.print("host={s} port={d} debug={} with_default={s} required={s}\n", .{ host, port, debug, with_default, required });
+    var stdoutBuffer: [0x100]u8 = undefined;
+    var stdoutWriter = Io.File.stdout().writer(io, &stdoutBuffer);
+    const stdout = &stdoutWriter.interface;
+    try stdout.print("host={s} port={d} debug={} withDefault={s} required={s}\n", .{ host, port, debug, withDefault, required });
     try stdout.flush();
 }
 ```
@@ -189,7 +189,7 @@ EMPTY=""
 Every `Env` instance owns its memory. Always call `deinit()` to free resources:
 
 ```zig
-var env = env_mod.Env.init(allocator, .{});
+var env = envMod.Env.init(allocator, .{});
 defer env.deinit(); // Free all memory
 ```
 
@@ -198,8 +198,8 @@ defer env.deinit(); // Free all memory
 `env.zig` has no global mutable state. Create as many `Env` instances as you need:
 
 ```zig
-var app_env = env_mod.Env.init(allocator, .{});
-var test_env = env_mod.Env.init(allocator, .{});
+var appEnv = envMod.Env.init(allocator, .{});
+var testEnv = envMod.Env.init(allocator, .{});
 ```
 
 ### Configuration Options
@@ -207,44 +207,45 @@ var test_env = env_mod.Env.init(allocator, .{});
 Customize behavior with the `Config` struct:
 
 ```zig
-var env = env_mod.Env.init(allocator, .{
+var env = envMod.Env.init(allocator, .{
     .strict = true,           // Fail on syntax errors
     .interpolate = true,      // Enable ${VAR} interpolation
     .trim = true,             // Trim whitespace
     .override = true,         // Override existing values on load
-    .sort_keys = true,        // Sort keys when serializing
-    .quote_spaces = true,     // Quote values containing spaces
+    .sortKeys = true,        // Sort keys when serializing
+    .quoteSpaces = true,     // Quote values containing spaces
 });
 ```
 
 ## Reading Values
 
 ```zig
-// Raw string (Env only)
+// Raw string (Env only, borrowed)
 const value = env.get("KEY");
 
-// OS-aware (Env → OS fallback via OsEnv.get / getenv / GetEnvironmentVariableW)
-const value2 = env.getOs("KEY"); // ?[]const u8
-const with_default = env.getWithFallback("PORT", "3000");
-const required = try env.require("API_KEY"); // error.MissingRequired
-const is_os = env.containsOs("HOME");
+// OS-aware (Env → runtime fallback)
+const value2 = env.getRuntime("KEY"); // ?[]const u8
+const withDefault = env.getWithFallback("PORT", "3000");
+const required = try env.requireRuntime("API_KEY"); // error.MissingRequired
+const is_os = env.containsRuntime("HOME");
 
-// Typed accessors
+// Typed accessors (missing -> null; invalid -> null; tryGet* -> TypeMismatch)
 const port = env.getInt(u16, "PORT");       // ?u16
 const debug = env.getBool("DEBUG");         // ?bool
 const ratio = env.getFloat(f64, "RATIO");   // ?f64
 const mode = env.getEnum(Mode, "MODE");     // ?Mode
+const generic = env.getValue(u16, "PORT");  // ?u16
 
-// List (split by delimiter)
+// List (owned items + slice; free each item, then the slice)
 const hosts = env.getList(allocator, "HOSTS", ','); // ?[][]const u8
 
-// Check existence
+// Check existence (missing vs empty are distinct)
 if (env.contains("KEY")) { ... }
-if (env.containsOs("KEY")) { ... }
+if (env.containsRuntime("KEY")) { ... }
 
-// Direct OS (cross-platform)
-const home = env_mod.OsEnv.get("HOME"); // thread-local TLS on Windows
-const home_alloc = try env_mod.OsEnv.getAlloc(allocator, "HOME");
+// Direct runtime (preferred namespace; borrowed on Windows until next get)
+const home = envMod.runtime.get("HOME");
+const homeAlloc = try envMod.runtime.getAlloc(allocator, "HOME");
 ```
 
 ## Writing & Updating Values
@@ -263,8 +264,8 @@ try env.merge(&defaults);
 ## Deleting Values
 
 ```zig
-// Remove single key (returns true if existed)
-if (env.remove("DEBUG")) {
+// Remove single key (!bool; export failures are returned, never swallowed)
+if (try env.remove("DEBUG")) {
     std.debug.print("Removed DEBUG\n", .{});
 }
 
@@ -284,7 +285,7 @@ for (keys) |key| {
 // Get entry count
 const count = env.count();
 
-// Use iterator
+// Use iterator (borrowed, no allocation; deinit is a no-op)
 var it = env.iterator();
 while (it.next()) |entry| {
     std.debug.print("{s}={s}\n", .{ entry.key, entry.value });
@@ -293,24 +294,27 @@ while (it.next()) |entry| {
 
 ## Cache
 
-Store values separately from environment entries:
+Standalone `Cache` for values separate from `Env` entries (`Env` owns no cache):
 
 ```zig
+var cache = envMod.Cache.init(allocator);
+defer cache.deinit();
+
 // Put values into cache
-try env.cache.put("token", "abc123");
-try env.cache.put("config", "{ \"timeout\": 30 }");
+try cache.put("token", "abc123");
+try cache.put("config", "{ \"timeout\": 30 }");
 
 // Get from cache
-if (env.cache.get("token")) |token| {
+if (cache.get("token")) |token| {
     std.debug.print("Token: {s}\n", .{token});
 }
 
 // Check existence
-if (env.cache.contains("token")) { ... }
+if (cache.contains("token")) { ... }
 
 // Remove & clear
-_ = env.cache.remove("token");
-env.cache.clear();
+_ = cache.remove("token");
+cache.clear();
 ```
 
 ## Serialization
@@ -320,6 +324,22 @@ env.cache.clear();
 const output = try env.serialize();
 defer allocator.free(output);
 
-// Save to file
+// Save to file (implicit IO: library owns the read/write setup)
 try env.save("output.env");
+```
+
+For full ownership, do the file IO explicitly with `std.Io` and keep
+only parsing/serialization in the library (no `load`/`save` used):
+
+```zig
+// Explicit read: caller owns the bytes and the io lifetime.
+const dir = Io.Dir.cwd();
+const raw = try dir.readFileAlloc(io, ".env", allocator, .limited(8192));
+defer allocator.free(raw);
+try env.parseString(raw);
+
+// Explicit write: caller owns the bytes and the io lifetime.
+const out = try env.serialize();
+defer allocator.free(out);
+try dir.writeFile(io, .{ .sub_path = ".env", .data = out });
 ```

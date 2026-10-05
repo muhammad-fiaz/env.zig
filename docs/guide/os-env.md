@@ -15,64 +15,63 @@ head:
 
 # OS Environment & Temporary Scopes
 
-`env.zig` bridges `.env` files with the **real OS process environment** on Windows, Linux and macOS. It uses `getenv`/`setenv`/`unsetenv` on POSIX and `GetEnvironmentVariableW`/`SetEnvironmentVariableW`/`GetEnvironmentStringsW` on Windows (case-insensitive on Windows, case-sensitive on POSIX).
+`env.zig` bridges `.env` files with the **real OS process environment** on Windows, Linux and macOS. Reads reuse Zig 0.17.0 `std.process.Environ` (case-insensitive on Windows, case-sensitive on POSIX); only `set`/`unset` use minimal custom bindings because std exposes no mutation API.
 
 ## Quick Start
 
 ```zig
-const env_mod = @import("env");
-const OsEnv = env_mod.OsEnv;
-const Scope = env_mod.Scope;
+const envMod = @import("env");
+const runtime = envMod.runtime;
 
-// Direct OS access (cross-platform)
-try OsEnv.set("MY_KEY", "my_value");
-const v = OsEnv.get("MY_KEY"); // ?[]const u8
-try OsEnv.unset("MY_KEY");
+// Direct runtime access (cross-platform, process-global, thread-unsafe)
+try runtime.set("MY_KEY", "my_value");
+const v = runtime.get("MY_KEY"); // ?[]const u8, borrowed
+try runtime.unset("MY_KEY");
 
 // Env store with OS fallback
-var env = env_mod.Env.init(allocator, .{});
+var env = envMod.Env.init(allocator, .{});
 defer env.deinit();
 try env.load(".env");
-const host = env.getOs("HOST") orelse "localhost"; // Env first, then OS
-try env.loadOsEnv();               // import all OS vars into Env
-try env.loadOsEnvIfMissing();      // only missing keys
-try env.loadOsEnvWithPrefix("APP_"); // APP_PORT -> PORT
-try env.exportToOsEnv();           // push Env -> OS
+const host = env.getRuntime("HOST") orelse "localhost"; // Env first, then runtime
+try env.loadRuntime();               // import all OS vars into Env
+try env.loadRuntimeIfMissing();      // only missing keys
+try env.loadRuntimeWithPrefix("APP_"); // APP_PORT -> PORT
+try env.exportToRuntime();           // push Env -> OS
 ```
 
 ## Import / Export
 
 ```zig
 // Import everything
-try env.loadOsEnv();
+try env.loadRuntime();
 
 // Import only keys with prefix, stripped
 // OS: APP_PORT=8080 -> Env: PORT=8080
-try env.loadOsEnvWithPrefix("APP_");
+try env.loadRuntimeWithPrefix("APP_");
 
 // Export
-try env.exportToOsEnv();
+try env.exportToRuntime();
 
 // Also via config:
-var env2 = env_mod.Env.init(allocator, .{ .export_to_env = true });
+var env2 = envMod.Env.init(allocator, .{ .exportToRuntime = true });
 try env2.set("FOO", "bar"); // automatically sets OS env too
 ```
 
-## `getOs` / `containsOs` / `require`
+## `getRuntime` / `containsRuntime` / `requireRuntime`
 
 ```zig
-// Checks Env first, then OS (like shell $VAR fallback)
-const url = env.getOs("DATABASE_URL");
-const ok = env.containsOs("HOME");
-const val = try env.require("API_KEY"); // error.MissingRequired if absent
+// Checks Env first, then runtime (like shell $VAR fallback)
+const url = env.getRuntime("DATABASE_URL");
+const ok = env.containsRuntime("HOME");
+const val = try env.requireRuntime("API_KEY"); // error.MissingRequired if absent
 
 // With default
 const port = env.getWithFallback("PORT", "3000");
 
-// Direct OS (bypass Env)
-const home = OsEnv.get("HOME");
-const home2 = try OsEnv.getAlloc(allocator, "HOME");
-const all = try OsEnv.getAllAlloc(allocator);
+// Direct runtime (bypass Env); get is borrowed, getAlloc is owned
+const home = runtime.get("HOME");
+const home2 = try runtime.getAlloc(allocator, "HOME");
+const all = try runtime.getAll(allocator);
 // free keys/values when done
 ```
 
@@ -99,7 +98,7 @@ OS environment is **global**. `Scope` saves original values and restores on `dei
 
 ```zig
 {
-    var scope = Scope.init(allocator);
+    var scope = try runtime.scope(allocator);
     defer scope.deinit();
     try scope.set("TMP_KEY", "temporary");
     try scope.unset("REMOVE_ME");
@@ -112,17 +111,17 @@ OS environment is **global**. `Scope` saves original values and restores on `dei
 ### With helper
 
 ```zig
-try Scope.with(allocator, &.{ .{ .key = "FOO", .value = "bar" } }, struct {
-    fn run() !void { std.debug.print("FOO={s}\n", .{OsEnv.get("FOO").?}); }
+try runtime.Scope.with(allocator, &.{ .{ .key = "FOO", .value = "bar" } }, struct {
+    fn run() !void { std.debug.print("FOO={s}\n", .{runtime.get("FOO").?}); }
 }.run);
 ```
 
 ### Snapshot / Restore
 
 ```zig
-var snap = try OsEnv.snapshot(allocator);
+var snap = try runtime.snapshot(allocator);
 defer snap.deinit();
-try OsEnv.set("A", "new");
+try runtime.set("A", "new");
 try snap.restore(); // back to snapshot
 ```
 
@@ -151,8 +150,10 @@ export PORT=8080
 ## Windows Notes
 
 - Case-insensitive: `PATH` and `Path` are the same.
-- Empty string `FOO=` is kept as `""` in `Env` but on Windows empty OS vars may be deleted when exported (Windows treats `FOO=` as unset). `Env` always preserves empty values.
-- `GetEnvironmentStringsW` / PEB locking is handled internally.
+- Missing (`null`) is distinct from empty (`""`); both are preserved.
+- `runtime.get` is borrowed from a thread-local buffer resized per call
+  (valid until the next `get` on the same thread); dupe to retain.
+  `Environ.createMap` (PEB-locked) backs enumeration.
 
 ## See Also
 

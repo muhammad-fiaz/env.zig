@@ -1,26 +1,25 @@
 const std = @import("std");
 const token = @import("token.zig");
-const config = @import("config.zig");
 
 const Token = token.Token;
 const TokenType = token.TokenType;
-const Config = config.Config;
 
-/// A streaming lexer for .env files.
+/// Streaming lexer for `.env` files. Comment character is `#`
+/// (hard-coded; `KEY="a # b"` keeps `#` literally).
 pub const Lexer = struct {
     source: []const u8,
     pos: usize,
     line: usize,
     col: usize,
-    config: Config,
+    atLineStart: bool,
 
-    pub fn init(source: []const u8, cfg: Config) Lexer {
+    pub fn init(source: []const u8) Lexer {
         return .{
             .source = source,
             .pos = 0,
             .line = 1,
             .col = 1,
-            .config = cfg,
+            .atLineStart = true,
         };
     }
 
@@ -35,8 +34,8 @@ pub const Lexer = struct {
         }
 
         const start = self.pos;
-        const start_line = self.line;
-        const start_col = self.col;
+        const startLine = self.line;
+        const startCol = self.col;
         const ch = self.source[self.pos];
 
         if (ch == '\n' or ch == '\r') {
@@ -49,21 +48,22 @@ pub const Lexer = struct {
                 self.col = 1;
                 self.line += 1;
             }
+            self.atLineStart = true;
             return .{
                 .type = .newline,
                 .slice = self.source[start..self.pos],
-                .line = start_line,
-                .column = start_col,
+                .line = startLine,
+                .column = startCol,
             };
         }
 
-        if (ch == self.config.comment_char) {
+        if (ch == '#') {
             self.skipToEndOfLine();
             return .{
                 .type = .comment,
                 .slice = self.source[start..self.pos],
-                .line = start_line,
-                .column = start_col,
+                .line = startLine,
+                .column = startCol,
             };
         }
 
@@ -75,45 +75,52 @@ pub const Lexer = struct {
             return .{
                 .type = .whitespace,
                 .slice = self.source[start..self.pos],
-                .line = start_line,
-                .column = start_col,
+                .line = startLine,
+                .column = startCol,
             };
         }
 
         if (ch == '=') {
             self.pos += 1;
             self.col += 1;
+            self.atLineStart = false;
             return .{
                 .type = .equals,
                 .slice = self.source[start..self.pos],
-                .line = start_line,
-                .column = start_col,
+                .line = startLine,
+                .column = startCol,
             };
         }
 
         if (ch == '"') {
-            return self.readQuoted(.quoted_value, '"');
+            self.atLineStart = false;
+            return self.readQuoted(.quotedValue, '"');
         }
 
         if (ch == '\'') {
-            return self.readQuoted(.single_quoted_value, '\'');
+            self.atLineStart = false;
+            return self.readQuoted(.singleQuotedValue, '\'');
         }
 
         if (ch == '`') {
-            return self.readQuoted(.backtick_quoted_value, '`');
+            self.atLineStart = false;
+            return self.readQuoted(.backtickQuotedValue, '`');
         }
 
         if (ch == '$' and self.pos + 1 < self.source.len and self.source[self.pos + 1] == '{') {
+            self.atLineStart = false;
             return self.readInterpolation();
         }
 
-        return self.readUnquoted();
+        const wasLineStart = self.atLineStart;
+        self.atLineStart = false;
+        return self.readUnquoted(wasLineStart);
     }
 
     fn readQuoted(self: *Lexer, tt: TokenType, quote: u8) Token {
         const start = self.pos;
-        const start_line = self.line;
-        const start_col = self.col;
+        const startLine = self.line;
+        const startCol = self.col;
         self.pos += 1;
         self.col += 1;
 
@@ -128,8 +135,8 @@ pub const Lexer = struct {
                 return .{
                     .type = tt,
                     .slice = self.source[start..self.pos],
-                    .line = start_line,
-                    .column = start_col,
+                    .line = startLine,
+                    .column = startCol,
                 };
             } else if (ch == '\n' or ch == '\r') {
                 if (ch == '\r' and self.pos + 1 < self.source.len and self.source[self.pos + 1] == '\n') {
@@ -150,15 +157,15 @@ pub const Lexer = struct {
         return .{
             .type = tt,
             .slice = self.source[start..self.pos],
-            .line = start_line,
-            .column = start_col,
+            .line = startLine,
+            .column = startCol,
         };
     }
 
     fn readInterpolation(self: *Lexer) Token {
         const start = self.pos;
-        const start_line = self.line;
-        const start_col = self.col;
+        const startLine = self.line;
+        const startCol = self.col;
         self.pos += 2;
         self.col += 2;
 
@@ -180,15 +187,15 @@ pub const Lexer = struct {
         return .{
             .type = .interpolation,
             .slice = self.source[start..self.pos],
-            .line = start_line,
-            .column = start_col,
+            .line = startLine,
+            .column = startCol,
         };
     }
 
-    fn readUnquoted(self: *Lexer) Token {
+    fn readUnquoted(self: *Lexer, wasLineStart: bool) Token {
         const start = self.pos;
-        const start_line = self.line;
-        const start_col = self.col;
+        const startLine = self.line;
+        const startCol = self.col;
 
         while (self.pos < self.source.len) {
             const ch = self.source[self.pos];
@@ -202,14 +209,10 @@ pub const Lexer = struct {
         }
 
         return .{
-            .type = if (start == 0 or (start > 0 and self.source[start - 1] == '\n' or
-                (start > 1 and self.source[start - 1] == '\r')))
-                .key
-            else
-                .value,
+            .type = if (wasLineStart) .key else .value,
             .slice = self.source[start..self.pos],
-            .line = start_line,
-            .column = start_col,
+            .line = startLine,
+            .column = startCol,
         };
     }
 
@@ -227,30 +230,30 @@ pub const Lexer = struct {
 };
 
 test "Lexer basic" {
-    var lex = Lexer.init("KEY=value\n", .{});
+    var lex = Lexer.init("KEY=value\n");
     const tok = lex.next();
     try std.testing.expectEqual(TokenType.key, tok.type);
     try std.testing.expectEqualStrings("KEY", tok.slice);
 }
 
 test "Lexer quoted value" {
-    var lex = Lexer.init("KEY=\"hello world\"\n", .{});
+    var lex = Lexer.init("KEY=\"hello world\"\n");
     _ = lex.next();
     const eq = lex.next();
     try std.testing.expectEqual(TokenType.equals, eq.type);
     const val = lex.next();
-    try std.testing.expectEqual(TokenType.quoted_value, val.type);
+    try std.testing.expectEqual(TokenType.quotedValue, val.type);
     try std.testing.expectEqualStrings("\"hello world\"", val.slice);
 }
 
 test "Lexer comment" {
-    var lex = Lexer.init("# this is a comment\n", .{});
+    var lex = Lexer.init("# this is a comment\n");
     const tok = lex.next();
     try std.testing.expectEqual(TokenType.comment, tok.type);
 }
 
 test "Lexer interpolation" {
-    var lex = Lexer.init("${KEY}", .{});
+    var lex = Lexer.init("${KEY}");
     const tok = lex.next();
     try std.testing.expectEqual(TokenType.interpolation, tok.type);
     try std.testing.expectEqualStrings("${KEY}", tok.slice);

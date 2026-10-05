@@ -1,7 +1,7 @@
 <div align="center">
 
 <a href="https://muhammad-fiaz.github.io/env.zig/"><img src="https://img.shields.io/badge/docs-muhammad--fiaz.github.io%2Fenv.zig-blue" alt="Documentation"></a>
-<a href="https://ziglang.org/"><img src="https://img.shields.io/badge/Zig-0.16.0-orange.svg?logo=zig" alt="Zig Version"></a>
+<a href="https://ziglang.org/"><img src="https://img.shields.io/badge/Zig-0.17.0-orange.svg?logo=zig" alt="Zig Version"></a>
 <a href="https://github.com/muhammad-fiaz/env.zig"><img src="https://img.shields.io/github/stars/muhammad-fiaz/env.zig" alt="GitHub stars"></a>
 <a href="https://github.com/muhammad-fiaz/env.zig/issues"><img src="https://img.shields.io/github/issues/muhammad-fiaz/env.zig" alt="GitHub issues"></a>
 <a href="https://github.com/muhammad-fiaz/env.zig/pulls"><img src="https://img.shields.io/github/issues-pr/muhammad-fiaz/env.zig" alt="GitHub pull requests"></a>
@@ -37,7 +37,7 @@
 > - **POSIX** `getenv` / `setenv` / `unsetenv` via `std.c.environ` with `setenv`/`unsetenv` externs, and `WTF-8` aware key validation
 > - **Windows** `GetEnvironmentVariableW` / `SetEnvironmentVariableW` / `GetEnvironmentStringsW` with `PEB` locking, `WTF-16LE ↔ WTF-8` conversion, `ERROR_ENVVAR_NOT_FOUND` handling via `SetLastError(0)`, and case-insensitive `Wyhash`/`eqlIgnoreCaseWtf8` matching
 > - **Interpolation** `${VAR}`, `$VAR`, `${VAR:-default}`, `${VAR:+alt}`, `${VAR:?err}`, nested `${MISSING:-${FALLBACK}}`, and `$env:VAR` / `${env:VAR}` (PowerShell `$env`) with OS fallback and circular-depth detection
-> - **Shell compat** `export KEY=val` prefix, `export_to_env` auto-sync, and prefix-filtered `APP_` loading
+> - **Shell compat** `export KEY=val` prefix, `exportToRuntime` auto-sync, and prefix-filtered `APP_` loading
 > - **Temporary scopes** `Scope` / `EnvScope` / `Snapshot` with save/restore for `$env`-style isolation and child-process `Environ.Map` building
 
 **Related Zig projects:**
@@ -71,17 +71,17 @@
 |---------|-------------|---------------|
 | **`.env` Parsing** | Load and parse `.env` files with comments, quotes, empty values, inline comments, and `export` prefix. | https://muhammad-fiaz.github.io/env.zig/guide/getting-started |
 | **Variable Interpolation** | `${VAR}`, `$VAR`, `${VAR:-default}`, `${VAR:+alt}`, `${VAR:?err}`, nested defaults, `$env:VAR` with OS fallback, circular detection, max depth. | https://muhammad-fiaz.github.io/env.zig/guide/interpolation |
-| **OS Environment (Win/Linux/macOS)** | Native `get`/`set`/`unset`/`getAll`/`snapshot` via `getenv`/`SetEnvironmentVariableW` with WTF-8/WTF-16 handling, thread-local TLS buffer. | https://muhammad-fiaz.github.io/env.zig/guide/os-env |
-| **Temporary / Scoped Env** | `Scope`, `EnvScope`, `Snapshot` + `with` helper for automatic restore; `$env`-style isolation for tests and child processes. | https://muhammad-fiaz.github.io/env.zig/guide/os-env |
-| **Shell Compatibility** | `export KEY=val`, `export_to_env` sync, prefix-filtered `loadOsEnvWithPrefix("APP_")`. | https://muhammad-fiaz.github.io/env.zig/guide/getting-started |
+| **OS Environment (Win/Linux/macOS)** | Explicit `env.runtime` namespace (`get`/`set`/`unset`/`getAll`/`snapshot`) reusing `std.process.Environ`; only `set`/`unset` use minimal OS bindings, WTF-8/WTF-16 aware, borrowed thread-local reads. | https://muhammad-fiaz.github.io/env.zig/guide/os-env |
+| **Temporary / Scoped Env** | `runtime.Scope`, `Env.EnvScope`, `Snapshot` + `with` helper for automatic restore; `$env`-style isolation for tests and child processes. | https://muhammad-fiaz.github.io/env.zig/guide/os-env |
+| **Shell Compatibility** | `export KEY=val`, `exportToRuntime` sync, prefix-filtered `loadRuntimeWithPrefix("APP_")`. | https://muhammad-fiaz.github.io/env.zig/guide/getting-started |
 | **Escape Sequences** | `\n`, `\t`, `\r`, `\\`, `\"`, `\'`, `` \` ``, `\$`, `\0` in double-quoted values (single source via `helpers.unescape`). | https://muhammad-fiaz.github.io/env.zig/guide/getting-started |
 | **Schema Validation** | Define schemas with required fields, types, and custom validators. Errors for required, warnings for optional. | https://muhammad-fiaz.github.io/env.zig/guide/validation |
 | **Built-in Validators** | `required`, `boolean`, `integer`, `float`, `url`, `email`, `ipv4`, `hostname`, `port`, `range`, `minLength`, `maxLength`, `oneOf`. | https://muhammad-fiaz.github.io/env.zig/api/validators |
-| **Type-Safe Accessors** | `get`, `getString`, `getBool`, `getInt`, `getFloat`, `getEnum`, `getList` + `getOs`, `getWithFallback`, `require`, `containsOs`. | https://muhammad-fiaz.github.io/env.zig/api/env |
-| **Serialization** | Write back to `.env` with quoting, sorting, trailing newlines; shared `needsQuoting`/`escapedForChar` helpers. | https://muhammad-fiaz.github.io/env.zig/guide/serialization |
+| **Type-Safe Accessors** | `get`, `getString`, `getAlloc`, `getOrDefault`, `getBool`, `getInt`, `getFloat`, `getEnum`, `getValue`, `getList` (owned) + `getRuntime`, `getWithFallback`, `requireRuntime`, `containsRuntime`. | https://muhammad-fiaz.github.io/env.zig/api/env |
+| **Serialization** | Write back to `.env` with quoting, sorting, trailing newlines; shared `needsQuoting`/`escapedForChar` helpers; `parse(serialize(x))` round-trip preserved. | https://muhammad-fiaz.github.io/env.zig/guide/serialization |
 | **Insertion Order** | Guaranteed order (unlike `std.process.Environ`). | https://muhammad-fiaz.github.io/env.zig/api/env |
-| **Cache** | Built-in `Cache` for frequently accessed values. | https://muhammad-fiaz.github.io/env.zig/api/env |
-| **Iterator** | `next`, `peek`, `reset`, `skip`, `remaining`, `collect`. | https://muhammad-fiaz.github.io/env.zig/api/env |
+| **Cache** | Standalone `Cache` for memoization (no longer owned by `Env`). | https://muhammad-fiaz.github.io/env.zig/api/env |
+| **Iterator** | Borrowed `next`, `peek`, `reset`, `skip`, `remaining`, `collect` (no allocation). | https://muhammad-fiaz.github.io/env.zig/api/env |
 | **Config Builder** | Chainable `.with()` pattern. | https://muhammad-fiaz.github.io/env.zig/api/config |
 | **Environ.Map** | `toEnvironMap` / `applyToEnvironMap` for `std.process.spawn` child envs. | https://muhammad-fiaz.github.io/env.zig/guide/os-env |
 | **Clone & Merge** | Deep copy and merge `Env` instances. | https://muhammad-fiaz.github.io/env.zig/api/env |
@@ -106,11 +106,11 @@ Before using `env.zig`, ensure you have the following:
 
 | Requirement | Version | Notes |
 |-------------|---------|-------|
-| **Zig** | **0.16.0** (recommended) | Download from [ziglang.org](https://ziglang.org/download/) |
+| **Zig** | **0.17.0+** (recommended) | Download from [ziglang.org](https://ziglang.org/download/) |
 | **Operating System** | Windows 10+, Linux, macOS | Cross-platform env support |
 
 > [!IMPORTANT]
-> **Zig 0.16.0 is required.** This project currently targets Zig 0.16.0 (stable). Zig 0.17.0 is in development (dev branch, not yet a stable release) and introduces several minor breaking changes from 0.16.0. Migration to 0.17.0 will happen once it is officially released as a stable version. Please use Zig 0.16.0 for all builds.
+> **Zig 0.17.0+ is required.** This project targets Zig 0.17.0 and later with `env.zig` v0.0.3. Zig 0.16.0 users must remain on `env.zig` v0.0.2 (see compatibility table below).
 
 ---
 
@@ -150,20 +150,25 @@ zig build -Dtarget=x86-windows
 
 ### Method 1: Zig Fetch (Recommended)
 
-**Latest Release (v0.0.2)**
+**Latest Release for Zig 0.17.0+ (v0.0.3)**
+
+```bash
+zig fetch https://github.com/muhammad-fiaz/env.zig/archive/refs/tags/0.0.3.tar.gz
+```
+
+**Previous Stable Release for Zig 0.16.0 (v0.0.2)**
 
 ```bash
 zig fetch https://github.com/muhammad-fiaz/env.zig/archive/refs/tags/0.0.2.tar.gz
 ```
 
-**Previous Stable Release (v0.0.1)**
-
-```bash
-zig fetch https://github.com/muhammad-fiaz/env.zig/archive/refs/tags/0.0.1.tar.gz
-```
+| env.zig | Zig |
+| --- | --- |
+| 0.0.3 | 0.17.0+ |
+| 0.0.2 | 0.16.0 |
 
 > [!WARNING]
-> Zig **0.15** is deprecated and supported only by **v0.0.1**. New projects should use **Zig 0.16.0+** with **env.zig v0.0.2**.
+> Zig **0.16.0** is supported only by **v0.0.2**. New projects should use **Zig 0.17.0+** with **env.zig v0.0.3**.
 
 ### Method 2: Zig Fetch (Main Branch)
 
@@ -180,7 +185,7 @@ Add the dependency to your `build.zig.zon` file.
 ```zig
 .dependencies = .{
     .env = .{
-        .url = "https://github.com/muhammad-fiaz/env.zig/archive/refs/tags/0.0.2.tar.gz",
+        .url = "https://github.com/muhammad-fiaz/env.zig/archive/refs/tags/0.0.3.tar.gz",
         .hash = "...", // Run `zig fetch <url>` to generate the hash.
     },
 },
@@ -225,13 +230,13 @@ exe.root_module.addImport("env", env_dep.module("env"));
 ```zig
 const std = @import("std");
 const Io = std.Io;
-const env_mod = @import("env");
+const envMod = @import("env");
 
 pub fn main(init: std.process.Init) !void {
     const io = init.io;
     const allocator = init.gpa;
 
-    var env = env_mod.Env.init(allocator, .{});
+    var env = envMod.Env.init(allocator, .{});
     defer env.deinit();
 
     try env.load(".env");
@@ -241,9 +246,9 @@ pub fn main(init: std.process.Init) !void {
     const port = env.getInt(u16, "PORT") orelse 3000;
     const debug = env.getBool("DEBUG") orelse false;
 
-    var stdout_buffer: [0x100]u8 = undefined;
-    var stdout_writer = Io.File.stdout().writer(io, &stdout_buffer);
-    const stdout = &stdout_writer.interface;
+    var stdoutBuffer: [0x100]u8 = undefined;
+    var stdoutWriter = Io.File.stdout().writer(io, &stdoutBuffer);
+    const stdout = &stdoutWriter.interface;
     try stdout.print("host={s} port={d} debug={}\n", .{ host, port, debug });
     try stdout.flush();
 }
@@ -252,32 +257,31 @@ pub fn main(init: std.process.Init) !void {
 ### OS Environment (Windows/Linux/macOS)
 
 ```zig
-const OsEnv = env_mod.OsEnv;
-const Scope = env_mod.Scope;
+const runtime = envMod.runtime;
 
-// Native OS
-try OsEnv.set("MY_KEY", "value");
-const v = OsEnv.get("MY_KEY"); // ?[]const u8
-try OsEnv.unset("MY_KEY");
+// Native runtime (process-global, thread-unsafe)
+try runtime.set("MY_KEY", "value");
+const v = runtime.get("MY_KEY"); // ?[]const u8, borrowed
+try runtime.unset("MY_KEY");
 
-// Env + OS fallback (like $VAR)
-const host = env.getOs("HOST") orelse "localhost";
-try env.loadOsEnv(); // import all OS vars
-try env.loadOsEnvWithPrefix("APP_"); // APP_PORT -> PORT
-try env.exportToOsEnv();
+// Env + runtime fallback (like $VAR)
+const host = env.getRuntime("HOST") orelse "localhost";
+try env.loadRuntime(); // import all runtime vars
+try env.loadRuntimeWithPrefix("APP_"); // APP_PORT -> PORT
+try env.exportToRuntime();
 
 // For child processes
 var map = try env.toEnvironMap(allocator);
 defer map.deinit();
 
-// Temporary $env isolation
+// Temporary $env isolation (snapshot-backed, nesting LIFO)
 {
-    var scope = Scope.init(allocator);
+    var scope = try runtime.scope(allocator);
     defer scope.deinit();
     try scope.set("TMP", "temporary");
     // restored on deinit
 }
-var snap = try OsEnv.snapshot(allocator);
+var snap = try runtime.snapshot(allocator);
 defer snap.deinit();
 try snap.restore();
 ```
@@ -295,7 +299,7 @@ ENV_STYLE=$env:HOME            # PowerShell $env: prefix
 ```
 
 ```zig
-var env2 = env_mod.Env.init(allocator, .{ .interpolate = true });
+var env2 = envMod.Env.init(allocator, .{ .interpolate = true });
 defer env2.deinit();
 try env2.parseString("A=${HOME}\nB=${MISSING:-default}\n");
 ```
@@ -303,29 +307,30 @@ try env2.parseString("A=${HOME}\nB=${MISSING:-default}\n");
 ### Schema Validation
 
 ```zig
-const schema = env_mod.schema.Schema.init(&.{
+const schema = envMod.schema.Schema.init(&.{
     .{
         .key = "DATABASE_URL",
         .required = true,
-        .validators_list = &.{ validators.required, validators.url },
+                .validatorsList = &.{ validators.required, validators.url },
         .description = "Database connection URL",
     },
     .{
         .key = "PORT",
         .required = true,
-        .validators_list = &.{ validators.required, validators.integer, validators.port },
+                .validatorsList = &.{ validators.required, validators.integer, validators.port },
         .description = "Server port",
     },
     .{
         .key = "LOG_LEVEL",
         .required = false,
-        .default_value = "info",
-        .validators_list = &.{validators.oneOf(&.{ "debug", "info", "warn", "error" })},
+                .defaultValue = "info",
+                .validatorsList = &.{validators.oneOf(&.{ "debug", "info", "warn", "error" })},
         .description = "Logging level",
     },
 });
 
-const errs = schema.validate(&env.entries);
+const errs = try env.validate(allocator, schema);
+defer allocator.free(errs);
 if (errs.len > 0) for (errs) |e| std.debug.print("{s}: {s}\n", .{ e.key, e.message });
 ```
 
@@ -343,26 +348,28 @@ try es.set("PORT", "9090");
 
 ## Examples
 
-The `examples/` directory contains **11 comprehensive, runnable examples** covering all error paths, callbacks and returns:
+The `examples/` directory contains **13 comprehensive, runnable examples** covering all error paths, callbacks and returns:
 
-- **Basic** - Set/get, type-safe accessors, iteration.
+- **Basic** - Set/get, type-safe accessors, explicit `.env` + `.env.local` file creation, `loadMany` override.
 - **Interpolation** - Nested `${VAR}`, defaults, OS fallback, `$env:VAR`.
-- **OS Environment** - Native `OsEnv`, `Scope`, `Snapshot`, `Environ.Map` (Windows/Linux/macOS).
+- **Runtime** - `runtime.get/set/unset`, missing vs empty, key validation, long values, snapshot/scope.
+- **Child Env** - `toEnvironMap`/`applyToEnvironMap` plus POSIX/Windows blocks for `spawn`.
+- **Unicode** - UTF-8 values, emoji, runtime round-trip, serialize/parse preservation.
 - **Validation** - Schema validation, custom `ValidatorFn` callbacks, `err` vs `warning`.
 - **Serialization** - Sorting, quoting, trailing newlines.
 - **Clone & Merge** - Deep copy and default merging.
-- **Cache** - Built-in `Cache` API.
-- **Iterator** - `peek`, `skip`, `reset`, `collect`.
-- **File I/O** - `load`/`save`/`loadMany`/`reload`, `loadOsEnvWithPrefix`, `exportToOsEnv` with correct `FileNotFound`/`IoError` returns.
-- **Error Handling** - `strict` mode, `ParseError`, `FileNotFound`, `CircularDependency`, `NoSpaceLeft` via `Writer`.
-- **Type-Safe** - `getBool`/`getInt`/`getFloat`/`getEnum`/`getList` with `null` returns on `TypeMismatch`, `getOs`/`containsOs`.
+- **Cache** - Standalone `Cache` API (no longer owned by `Env`).
+- **Iterator** - Borrowed `peek`, `skip`, `reset`, `collect` (no allocation).
+- **File I/O** - `load`/`save`/`loadMany`/`reload`, `loadRuntimeWithPrefix`, `exportToRuntime` with correct `FileNotFound`/`PermissionDenied`/`IoError` returns.
+- **Error Handling** - `strict` mode with specific errors (`InvalidKey`, ...), `FileNotFound`, `CircularDependency`, `NoSpaceLeft` via `Writer`.
+- **Type-Safe** - `getBool`/`getInt`/`getFloat`/`getEnum`/`getList` (owned)/`getValue` with `null` on missing, `TypeMismatch` via `tryGet*`, `getRuntime`/`containsRuntime`.
 
 To run:
 
 ```bash
 zig build example
 zig-out/bin/basic_example
-zig-out/bin/os_env_example
+zig-out/bin/runtime_example
 zig-out/bin/file_io_example
 zig-out/bin/error_handling_example
 zig-out/bin/type_safe_example

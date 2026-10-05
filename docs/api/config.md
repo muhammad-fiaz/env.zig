@@ -22,22 +22,24 @@ Configuration options for parsing and loading `.env` files.
 ```zig
 pub const Config = struct {
     trim: bool = true,
-    allow_empty: bool = true,
+    allowEmpty: bool = true,
     interpolate: bool = true,
     override: bool = true,
     strict: bool = false,
-    allow_inline_comments: bool = true,
-    allow_multiline: bool = false,
-    max_interpolation_depth: usize = 10,
-    comment_char: u8 = '#',
-    export_to_env: bool = false,
-    preserve_comments: bool = false,
-    sort_keys: bool = false,
-    indent: usize = 0,
-    trailing_newline: bool = true,
-    quote_spaces: bool = true,
+    allowInlineComments: bool = true,
+    allowMultiline: bool = false,
+    maxInterpolationDepth: usize = 10,
+    exportToRuntime: bool = false,
+    sortKeys: bool = false,
+    trailingNewline: bool = true,
+    quoteSpaces: bool = true,
 };
 ```
+
+Every field is implemented. Comments use hard-coded `#`.
+`maxInterpolationDepth` actually controls interpolation depth.
+Strict mode returns the specific `EnvError` (e.g. `error.InvalidKey`)
+instead of a generic `error.ParseError`.
 
 ## Config.with
 

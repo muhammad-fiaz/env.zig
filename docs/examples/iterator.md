@@ -15,20 +15,21 @@ head:
 
 # Iterator Example
 
-Iterator API with peek, skip, reset, and collect operations.
+Borrowed insertion-order iterator with peek, skip, reset, and collect
+(no allocation; `deinit` is a no-op).
 
 ## Source Code
 
 ```zig
 const std = @import("std");
 const Io = std.Io;
-const env_mod = @import("env");
+const envMod = @import("env");
 
 pub fn main(init: std.process.Init) !void {
     const io = init.io;
     const allocator = init.gpa;
 
-    var env = env_mod.Env.init(allocator, .{});
+    var env = envMod.Env.init(allocator, .{});
     defer env.deinit();
 
     try env.parseString(
@@ -40,9 +41,9 @@ pub fn main(init: std.process.Init) !void {
         \\
     );
 
-    var stdout_buffer: [0x100]u8 = undefined;
-    var stdout_writer = Io.File.stdout().writer(io, &stdout_buffer);
-    const stdout = &stdout_writer.interface;
+    var stdoutBuffer: [0x100]u8 = undefined;
+    var stdoutWriter = Io.File.stdout().writer(io, &stdoutBuffer);
+    const stdout = &stdoutWriter.interface;
 
     try stdout.print("=== Iterator Example ===\n\n", .{});
 
@@ -52,17 +53,17 @@ pub fn main(init: std.process.Init) !void {
         try stdout.print("  {s} = {s}\n", .{ key, env.get(key).? });
     }
 
-    // Iterator API — allocates entries, must free
+    // Iterator API — borrowed, no allocation; deinit is a no-op.
     try stdout.print("\nAll entries (via iterator):\n", .{});
     var it = env.iterator();
-    defer allocator.free(it.entries);
+    defer it.deinit();
     while (it.next()) |entry| {
         try stdout.print("  {s} = {s}\n", .{ entry.key, entry.value });
     }
 
     // Peek without consuming
     var it2 = env.iterator();
-    defer allocator.free(it2.entries);
+    defer it2.deinit();
     if (it2.peek()) |entry| {
         try stdout.print("\nPeek first: {s} = {s}\n", .{ entry.key, entry.value });
     }
@@ -72,7 +73,7 @@ pub fn main(init: std.process.Init) !void {
 
     // Skip entries
     var it3 = env.iterator();
-    defer allocator.free(it3.entries);
+    defer it3.deinit();
     try stdout.print("\nRemaining before skip: {d}\n", .{it3.remaining()});
     it3.skip(2);
     try stdout.print("Remaining after skip(2): {d}\n", .{it3.remaining()});
@@ -82,7 +83,7 @@ pub fn main(init: std.process.Init) !void {
 
     // Reset iterator
     var it4 = env.iterator();
-    defer allocator.free(it4.entries);
+    defer it4.deinit();
     _ = it4.next();
     _ = it4.next();
     it4.reset();
@@ -97,6 +98,60 @@ pub fn main(init: std.process.Init) !void {
 
 ```bash
 zig-out/bin/iterator_example
+```
+
+## Example Output
+
+```env
+=== Iterator Example ===
+
+All entries (via keys):
+  APP_NAME = myapp
+  PORT = 8080
+  DEBUG = true
+  LOG_LEVEL = info
+  DATABASE_URL = postgres://localhost/mydb
+
+All entries (via iterator):
+  APP_NAME = myapp
+  PORT = 8080
+  DEBUG = true
+  LOG_LEVEL = info
+  DATABASE_URL = postgres://localhost/mydb
+
+Peek first: APP_NAME = myapp
+Peek again: APP_NAME = myapp
+
+Remaining before skip: 5
+Remaining after skip(2): 3
+Next after skip: DEBUG = true
+
+After reset, next: APP_NAME
+
+Total entries: 5
+```
+
+## Before / After
+
+The iterated store (unchanged by iteration):
+
+```env
+APP_NAME=myapp
+PORT=8080
+DEBUG=true
+LOG_LEVEL=info
+DATABASE_URL=postgres://localhost/mydb
+```
+
+Iterator cursor states observed:
+
+```env
+# fresh iterator
+remaining=5
+# after skip(2)
+remaining=3
+# after reset
+next=APP_NAME
 ```
 
 ## See Also

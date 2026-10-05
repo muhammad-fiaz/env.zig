@@ -20,7 +20,7 @@ env.zig supports `${VAR}` / `$VAR` with shell-like fallbacks and OS env fallback
 ## Enable Interpolation
 
 ```zig
-var env = env_mod.Env.init(allocator, .{
+var env = envMod.Env.init(allocator, .{
     .interpolate = true, // default true
 });
 ```
@@ -56,7 +56,7 @@ DEBUG_MSG=${DEBUG:+enabled}
 REQUIRED=${API_KEY:?API_KEY is required}
 ```
 
-OS fallback walks: `Env` entries → `OsEnv.get` (POSIX `getenv` / Windows `GetEnvironmentVariableW`).
+OS fallback walks: `Env` entries → `runtime.get` (POSIX `getenv` / Windows `GetEnvironmentVariableW`).
 
 ## Circular Detection
 

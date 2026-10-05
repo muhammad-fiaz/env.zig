@@ -1,6 +1,6 @@
 const std = @import("std");
 const Io = std.Io;
-const env_mod = @import("env");
+const envMod = @import("env");
 
 const Mode = enum { debug, release, testing };
 
@@ -8,7 +8,7 @@ pub fn main(init: std.process.Init) !void {
     const io = init.io;
     const allocator = init.gpa;
 
-    var env = env_mod.Env.init(allocator, .{});
+    var env = envMod.Env.init(allocator, .{});
     defer env.deinit();
 
     try env.parseString(
@@ -21,9 +21,9 @@ pub fn main(init: std.process.Init) !void {
         \\
     );
 
-    var stdout_buffer: [0x2000]u8 = undefined;
-    var stdout_writer = Io.File.stdout().writer(io, &stdout_buffer);
-    const stdout = &stdout_writer.interface;
+    var stdoutBuffer: [0x2000]u8 = undefined;
+    var stdoutWriter = Io.File.stdout().writer(io, &stdoutBuffer);
+    const stdout = &stdoutWriter.interface;
 
     try stdout.print("=== Type-Safe Accessors Example ===\n\n", .{});
 
@@ -42,9 +42,9 @@ pub fn main(init: std.process.Init) !void {
     if (env.getFloat(f64, "RATIO")) |f| try stdout.print("getFloat RATIO = {d}\n", .{f});
     try stdout.print("getFloat PORT as f64 = {d}\n", .{env.getFloat(f64, "PORT").?});
 
-    // getBool accepts true/false/yes/no/1/0/on/off case-insensitive
+    // getBool accepts true/false/yes/no/1/0/on/off (case-insensitive).
     for ([_][]const u8{ "true", "True", "yes", "1", "on", "false", "no", "0", "off", "maybe" }) |val| {
-        var tmp = env_mod.Env.init(allocator, .{});
+        var tmp = envMod.Env.init(allocator, .{});
         defer tmp.deinit();
         try tmp.set("K", val);
         try stdout.print("  getBool {s} -> {any}\n", .{ val, tmp.getBool("K") });
@@ -54,28 +54,54 @@ pub fn main(init: std.process.Init) !void {
     try stdout.print("getEnum MODE = {any}\n", .{env.getEnum(Mode, "MODE")});
     try stdout.print("getEnum PORT as Mode = {any} (null expected)\n", .{env.getEnum(Mode, "PORT")});
 
-    // getList with delimiter and trimming
+    // getList returns owned strings: free each item, then the slice.
     if (env.getList(allocator, "HOSTS", ',')) |list| {
-        defer allocator.free(list);
+        defer {
+            for (list) |item| allocator.free(item);
+            allocator.free(list);
+        }
         try stdout.print("getList HOSTS count={d}\n", .{list.len});
         for (list, 0..) |h, i| try stdout.print("  [{d}] {s}\n", .{ i, h });
-        // Note: list elements are slices into original value — no dupe needed, free only outer slice
     }
 
-    // Empty list
-    try stdout.print("getList EMPTY = {any} (null or empty)\n", .{env.getList(allocator, "EMPTY", ',')});
+    // Empty list (null when missing or when no non-empty segments).
+    if (env.getList(allocator, "EMPTY", ',')) |emptyList| {
+        defer {
+            for (emptyList) |item| allocator.free(item);
+            allocator.free(emptyList);
+        }
+        try stdout.print("getList EMPTY count={d}\n", .{emptyList.len});
+    } else {
+        try stdout.print("getList EMPTY = null (empty)\n", .{});
+    }
 
-    // require-style via getOrDefault helpers
+    // Generic typed API with defaults.
+    try stdout.print("getValue u16 PORT = {d}\n", .{env.getValue(u16, "PORT").?});
+    try stdout.print("getValueOrDefault u16 MISSING = {d}\n", .{env.getValueOrDefault(u16, "MISSING", 9999)});
+    try stdout.print("requireValue MODE = {any}\n", .{try env.requireValue(Mode, "MODE")});
+
+    // Fallback default (checks Env, then OS).
     try stdout.print("getWithFallback MISSING -> {s}\n", .{env.getWithFallback("MISSING", "fallback")});
     try stdout.print("getWithFallback PORT -> {s}\n", .{env.getWithFallback("PORT", "3000")});
 
-    // contains / containsOs
-    try stdout.print("contains PORT={} containsOs HOME={}\n", .{ env.contains("PORT"), env.containsOs("HOME") });
+    // tryGet* distinguishes missing (null) from invalid (error.TypeMismatch)
+    try stdout.print("tryGetInt MISSING -> {any} (null)\n", .{try env.tryGetInt(i32, "MISSING")});
+    try stdout.print("tryGetInt PORT -> {d}\n", .{(try env.tryGetInt(i32, "PORT")).?});
+    if (env.tryGetInt(i32, "MODE")) |_| {
+        try stdout.print("tryGetInt MODE unexpectedly succeeded\n", .{});
+    } else |err| {
+        try stdout.print("tryGetInt MODE -> {s} (invalid, not defaulted)\n", .{@errorName(err)});
+    }
+    try stdout.print("tryGetBool MISSING -> {any} (null)\n", .{try env.tryGetBool("MISSING")});
+    try stdout.print("tryGetEnum MODE -> {any}\n", .{try env.tryGetEnum(Mode, "MODE")});
 
-    // OS fallback display
-    try env_mod.OsEnv.set("TYPE_SAFE_OS_TEST", "from_os");
-    defer env_mod.OsEnv.unset("TYPE_SAFE_OS_TEST") catch {};
-    try stdout.print("getOs TYPE_SAFE_OS_TEST = {s}\n", .{env.getOs("TYPE_SAFE_OS_TEST").?});
+    // contains / containsRuntime
+    try stdout.print("contains PORT={} containsRuntime HOME={}\n", .{ env.contains("PORT"), env.containsRuntime("HOME") });
+
+    // Runtime fallback display
+    try envMod.runtime.set("TYPE_SAFE_OS_TEST", "from_os");
+    defer envMod.runtime.unset("TYPE_SAFE_OS_TEST") catch {};
+    try stdout.print("getRuntime TYPE_SAFE_OS_TEST = {s}\n", .{env.getRuntime("TYPE_SAFE_OS_TEST").?});
 
     try stdout.flush();
 }

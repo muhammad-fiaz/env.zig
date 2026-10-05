@@ -1,9 +1,10 @@
 const std = @import("std");
 
 /// Check if a string is a valid .env key.
-/// Valid keys start with a letter or underscore and contain only
-/// alphanumeric characters and underscores. Covers all targets
-/// (x86, x86_64, aarch64, 32/64-bit) uniformly — no arch-specific logic.
+/// Valid keys start with a letter or underscore, followed by
+/// letters, digits, or underscores. This is intentionally stricter than
+/// runtime environment keys (see `runtime.validateKey`): `.env` files
+/// require shell-portable identifiers.
 pub fn isValidKey(key: []const u8) bool {
     if (key.len == 0) return false;
     if (!std.ascii.isAlphabetic(key[0]) and key[0] != '_') return false;
@@ -15,14 +16,27 @@ pub fn isValidKey(key: []const u8) bool {
 
 /// Returns true if value needs quoting when serializing to .env.
 /// Shared by serializer and writer — single source of truth.
-pub fn needsQuoting(value: []const u8, quote_spaces: bool) bool {
-    if (!quote_spaces) return false;
-    return value.len == 0 or
-        std.mem.indexOfScalar(u8, value, ' ') != null or
-        std.mem.indexOfScalar(u8, value, '#') != null or
-        std.mem.indexOfScalar(u8, value, '\n') != null or
-        std.mem.indexOfScalar(u8, value, '\r') != null or
-        std.mem.indexOfScalar(u8, value, '\t') != null;
+/// Quotes when the value would not survive an unquoted round-trip:
+/// empty, whitespace, `#` (comment), quotes, backticks, backslashes,
+/// `$` (interpolation), `=` (separator) or control characters.
+pub fn needsQuoting(value: []const u8, quoteSpaces: bool) bool {
+    if (value.len == 0) return true;
+    if (!quoteSpaces) {
+        // Even with quoting disabled, values that would break the
+        // line structure must still be quoted for a lossless round-trip.
+        for (value) |ch| {
+            if (ch == '"' or ch == '\'' or ch == '`' or ch == '\\' or
+                ch == '\n' or ch == '\r' or ch == 0) return true;
+        }
+        return false;
+    }
+    for (value) |ch| {
+        switch (ch) {
+            ' ', '\t', '\n', '\r', '#', '"', '\'', '`', '\\', '$', '=', 0 => return true,
+            else => {},
+        }
+    }
+    return false;
 }
 
 /// Escaped representation for a single byte when writing quoted values.
@@ -40,6 +54,9 @@ pub inline fn escapedForChar(ch: u8) ?[]const u8 {
 
 /// Unescape a value string, processing escape sequences.
 /// Supports: \n \r \t \\ \" \' \` \$ \0
+/// Unknown escapes collapse to the escaped character itself (the backslash
+/// is removed, e.g. `\q` becomes `q`). A trailing backslash with no
+/// following character is kept literally.
 /// Used by parser for double-quoted values — single source for unescaping.
 pub fn unescape(allocator: std.mem.Allocator, input: []const u8) ![]const u8 {
     var result: std.ArrayList(u8) = .empty;

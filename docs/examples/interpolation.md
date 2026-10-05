@@ -15,20 +15,21 @@ head:
 
 # Interpolation Example
 
-Variable interpolation with `${VAR}` syntax.
+Variable interpolation with `${VAR}` syntax, defaults, alternates,
+required expressions, nesting, and `$env:` prefixes.
 
 ## Source Code
 
 ```zig
 const std = @import("std");
 const Io = std.Io;
-const env_mod = @import("env");
+const envMod = @import("env");
 
 pub fn main(init: std.process.Init) !void {
     const io = init.io;
     const allocator = init.gpa;
 
-    var env = env_mod.Env.init(allocator, .{ .interpolate = true });
+    var env = envMod.Env.init(allocator, .{ .interpolate = true });
     defer env.deinit();
 
     try env.parseString(
@@ -42,9 +43,9 @@ pub fn main(init: std.process.Init) !void {
         \\
     );
 
-    var stdout_buffer: [0x100]u8 = undefined;
-    var stdout_writer = Io.File.stdout().writer(io, &stdout_buffer);
-    const stdout = &stdout_writer.interface;
+    var stdoutBuffer: [0x100]u8 = undefined;
+    var stdoutWriter = Io.File.stdout().writer(io, &stdoutBuffer);
+    const stdout = &stdoutWriter.interface;
 
     try stdout.print("=== Interpolation Example ===\n\n", .{});
 
@@ -70,6 +71,49 @@ pub fn main(init: std.process.Init) !void {
 
 ```bash
 zig-out/bin/interpolation_example
+```
+
+## Example Output
+
+```env
+=== Interpolation Example ===
+
+Original values:
+  APP_NAME = myapp
+  DATABASE_HOST = localhost
+  DATABASE_PORT = 5432
+
+Interpolated values:
+  DATABASE_URL = postgres://localhost:5432/mydb
+  MESSAGE = hello world
+  SHORTCUT = myapp is running
+
+All resolved keys:
+  APP_NAME = myapp
+  DATABASE_HOST = localhost
+  DATABASE_PORT = 5432
+  DATABASE_URL = postgres://localhost:5432/mydb
+  GREETING = hello
+  MESSAGE = hello world
+  SHORTCUT = myapp is running
+```
+
+## Before / After
+
+Before interpolation the raw entries are:
+
+```env
+DATABASE_URL=postgres://${DATABASE_HOST}:${DATABASE_PORT}/mydb
+MESSAGE=${GREETING} world
+SHORTCUT=${APP_NAME} is running
+```
+
+After resolution with `interpolate = true`:
+
+```env
+DATABASE_URL=postgres://localhost:5432/mydb
+MESSAGE=hello world
+SHORTCUT=myapp is running
 ```
 
 ## See Also

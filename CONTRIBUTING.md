@@ -16,7 +16,7 @@ Thank you for your interest in contributing to env.zig! This document provides g
 
 ### Prerequisites
 
-- Zig 0.16.0 or later
+- Zig 0.17.0 or later
 
 ### Building
 

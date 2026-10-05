@@ -1,12 +1,12 @@
 const std = @import("std");
 const Io = std.Io;
-const env_mod = @import("env");
+const envMod = @import("env");
 
 pub fn main(init: std.process.Init) !void {
     const io = init.io;
     const allocator = init.gpa;
 
-    var env = env_mod.Env.init(allocator, .{});
+    var env = envMod.Env.init(allocator, .{});
     defer env.deinit();
 
     try env.parseString(
@@ -16,33 +16,36 @@ pub fn main(init: std.process.Init) !void {
         \\
     );
 
-    var stdout_buffer: [0x100]u8 = undefined;
-    var stdout_writer = Io.File.stdout().writer(io, &stdout_buffer);
-    const stdout = &stdout_writer.interface;
+    var stdoutBuffer: [0x100]u8 = undefined;
+    var stdoutWriter = Io.File.stdout().writer(io, &stdoutBuffer);
+    const stdout = &stdoutWriter.interface;
 
     try stdout.print("=== Cache Example ===\n\n", .{});
 
-    try env.cache.put("cached_token", "abc123");
-    try env.cache.put("cached_config", "{ \"timeout\": 30 }");
+    var cache = envMod.Cache.init(allocator);
+    defer cache.deinit();
 
-    try stdout.print("Cache count: {d}\n", .{env.cache.count()});
+    try cache.put("cached_token", "abc123");
+    try cache.put("cached_config", "{ \"timeout\": 30 }");
 
-    if (env.cache.get("cached_token")) |token| {
+    try stdout.print("Cache count: {d}\n", .{cache.count()});
+
+    if (cache.get("cached_token")) |token| {
         try stdout.print("Cached token: {s}\n", .{token});
     }
 
-    try stdout.print("Has cached_token: {}\n", .{env.cache.contains("cached_token")});
-    try stdout.print("Has missing: {}\n", .{env.cache.contains("missing")});
+    try stdout.print("Has cached_token: {}\n", .{cache.contains("cached_token")});
+    try stdout.print("Has missing: {}\n", .{cache.contains("missing")});
 
-    try env.cache.put("cached_token", "new_token_456");
-    try stdout.print("Updated token: {s}\n", .{env.cache.get("cached_token").?});
+    try cache.put("cached_token", "new_token_456");
+    try stdout.print("Updated token: {s}\n", .{cache.get("cached_token").?});
 
-    _ = env.cache.remove("cached_config");
-    try stdout.print("After remove, has cached_config: {}\n", .{env.cache.contains("cached_config")});
-    try stdout.print("Cache count after remove: {d}\n", .{env.cache.count()});
+    _ = cache.remove("cached_config");
+    try stdout.print("After remove, has cached_config: {}\n", .{cache.contains("cached_config")});
+    try stdout.print("Cache count after remove: {d}\n", .{cache.count()});
 
-    env.cache.clear();
-    try stdout.print("Cache count after clear: {d}\n", .{env.cache.count()});
+    cache.clear();
+    try stdout.print("Cache count after clear: {d}\n", .{cache.count()});
 
     try stdout.print("\nEnv entries still intact:\n", .{});
     for (env.keys()) |key| {
