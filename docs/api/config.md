@@ -29,16 +29,15 @@ pub const Config = struct {
     allowInlineComments: bool = true,
     allowMultiline: bool = false,
     maxInterpolationDepth: usize = 10,
-    commentChar: u8 = '#',
-    exportToEnv: bool = false,
+    exportToRuntime: bool = false,
     sortKeys: bool = false,
     trailingNewline: bool = true,
     quoteSpaces: bool = true,
 };
 ```
 
-Every field is implemented. `commentChar` must be `#`;
-`maxInterpolationDepth == 0` is rejected by `Config.validate`.
+Every field is implemented. Comments use hard-coded `#`.
+`maxInterpolationDepth` actually controls interpolation depth.
 Strict mode returns the specific `EnvError` (e.g. `error.InvalidKey`)
 instead of a generic `error.ParseError`.
 

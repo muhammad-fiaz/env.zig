@@ -1,4 +1,5 @@
 const std = @import("std");
+const typed = @import("internal/typed.zig");
 
 /// A validation level.
 pub const Level = enum {
@@ -31,41 +32,25 @@ pub const validators = struct {
 
     /// Value must be a valid boolean (true/false/yes/no/1/0/on/off,
     /// case-insensitive, surrounding whitespace ignored).
+    /// Shares `internal/typed.zig` conversion with typed getters.
     pub fn boolean(value: []const u8) ?[]const u8 {
-        const v = std.mem.trim(u8, value, " \t\r\n");
-        if (v.len == 0) return "value must not be empty";
-        if (v.len > 8) return "value must be a valid boolean (true/false/yes/no/1/0/on/off)";
-        var buf: [8]u8 = undefined;
-        for (v, 0..) |ch, i| {
-            buf[i] = std.ascii.toLower(ch);
-        }
-        const lower = buf[0..v.len];
-        if (std.mem.eql(u8, lower, "true") or std.mem.eql(u8, lower, "false") or
-            std.mem.eql(u8, lower, "yes") or std.mem.eql(u8, lower, "no") or
-            std.mem.eql(u8, lower, "1") or std.mem.eql(u8, lower, "0") or
-            std.mem.eql(u8, lower, "on") or std.mem.eql(u8, lower, "off"))
-        {
-            return null;
-        }
+        if (std.mem.trim(u8, value, " \t\r\n").len == 0) return "value must not be empty";
+        if (typed.parseBoolValue(value) != null) return null;
         return "value must be a valid boolean (true/false/yes/no/1/0/on/off)";
     }
 
-    /// Value must be a valid integer (optional `+`/`-`, digits only,
-    /// surrounding whitespace ignored). Uses the same syntax as `getInt`.
+    /// Value must be a valid integer. Shares `typed.parseIntValue`.
     pub fn integer(value: []const u8) ?[]const u8 {
-        const v = std.mem.trim(u8, value, " \t\r\n");
-        if (v.len == 0) return "value must not be empty";
-        _ = std.fmt.parseInt(i64, v, 10) catch return "value must be a valid integer";
-        return null;
+        if (std.mem.trim(u8, value, " \t\r\n").len == 0) return "value must not be empty";
+        if (typed.parseIntValue(i64, value) != null) return null;
+        return "value must be a valid integer";
     }
 
-    /// Value must be a valid float (agrees with `std.fmt.parseFloat`,
-    /// surrounding whitespace ignored). Accepts exponents, `inf`, `nan`.
+    /// Value must be a valid float. Shares `typed.parseFloatValue`.
     pub fn float(value: []const u8) ?[]const u8 {
-        const v = std.mem.trim(u8, value, " \t\r\n");
-        if (v.len == 0) return "value must not be empty";
-        _ = std.fmt.parseFloat(f64, v) catch return "value must be a valid float";
-        return null;
+        if (std.mem.trim(u8, value, " \t\r\n").len == 0) return "value must not be empty";
+        if (typed.parseFloatValue(f64, value) != null) return null;
+        return "value must be a valid float";
     }
 
     /// Basic URL check: must start with `http://` or `https://`.

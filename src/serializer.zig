@@ -16,14 +16,16 @@ pub const Serializer = struct {
     /// Serialize entries to a .env formatted string.
     /// Honors `cfg.sortKeys` only via `serializeSorted`; honors
     /// `cfg.trailingNewline` and `cfg.quoteSpaces`.
-    /// Returns `error.InvalidValue` when a key or value contains NUL.
+    /// Returns `error.InvalidKey` for non-`.env` keys, `error.InvalidValue`
+    /// for embedded NUL. Runtime-style keys must use `runtime.set`, not
+    /// `.env` serialization.
     pub fn serialize(
         allocator: std.mem.Allocator,
         entries: []const SerEntry,
         cfg: Config,
     ) ![]const u8 {
         for (entries) |entry| {
-            if (std.mem.indexOfScalar(u8, entry.key, 0) != null) return error.InvalidValue;
+            if (!helpers.isValidKey(entry.key)) return error.InvalidKey;
             if (std.mem.indexOfScalar(u8, entry.value, 0) != null) return error.InvalidValue;
         }
         var result: std.ArrayList(u8) = .empty;

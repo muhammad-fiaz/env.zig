@@ -37,7 +37,7 @@
 > - **POSIX** `getenv` / `setenv` / `unsetenv` via `std.c.environ` with `setenv`/`unsetenv` externs, and `WTF-8` aware key validation
 > - **Windows** `GetEnvironmentVariableW` / `SetEnvironmentVariableW` / `GetEnvironmentStringsW` with `PEB` locking, `WTF-16LE ↔ WTF-8` conversion, `ERROR_ENVVAR_NOT_FOUND` handling via `SetLastError(0)`, and case-insensitive `Wyhash`/`eqlIgnoreCaseWtf8` matching
 > - **Interpolation** `${VAR}`, `$VAR`, `${VAR:-default}`, `${VAR:+alt}`, `${VAR:?err}`, nested `${MISSING:-${FALLBACK}}`, and `$env:VAR` / `${env:VAR}` (PowerShell `$env`) with OS fallback and circular-depth detection
-> - **Shell compat** `export KEY=val` prefix, `exportToEnv` auto-sync, and prefix-filtered `APP_` loading
+> - **Shell compat** `export KEY=val` prefix, `exportToRuntime` auto-sync, and prefix-filtered `APP_` loading
 > - **Temporary scopes** `Scope` / `EnvScope` / `Snapshot` with save/restore for `$env`-style isolation and child-process `Environ.Map` building
 
 **Related Zig projects:**
@@ -73,11 +73,11 @@
 | **Variable Interpolation** | `${VAR}`, `$VAR`, `${VAR:-default}`, `${VAR:+alt}`, `${VAR:?err}`, nested defaults, `$env:VAR` with OS fallback, circular detection, max depth. | https://muhammad-fiaz.github.io/env.zig/guide/interpolation |
 | **OS Environment (Win/Linux/macOS)** | Explicit `env.runtime` namespace (`get`/`set`/`unset`/`getAll`/`snapshot`) reusing `std.process.Environ`; only `set`/`unset` use minimal OS bindings, WTF-8/WTF-16 aware, borrowed thread-local reads. | https://muhammad-fiaz.github.io/env.zig/guide/os-env |
 | **Temporary / Scoped Env** | `runtime.Scope`, `Env.EnvScope`, `Snapshot` + `with` helper for automatic restore; `$env`-style isolation for tests and child processes. | https://muhammad-fiaz.github.io/env.zig/guide/os-env |
-| **Shell Compatibility** | `export KEY=val`, `exportToEnv` sync, prefix-filtered `loadOsEnvWithPrefix("APP_")`. | https://muhammad-fiaz.github.io/env.zig/guide/getting-started |
+| **Shell Compatibility** | `export KEY=val`, `exportToRuntime` sync, prefix-filtered `loadRuntimeWithPrefix("APP_")`. | https://muhammad-fiaz.github.io/env.zig/guide/getting-started |
 | **Escape Sequences** | `\n`, `\t`, `\r`, `\\`, `\"`, `\'`, `` \` ``, `\$`, `\0` in double-quoted values (single source via `helpers.unescape`). | https://muhammad-fiaz.github.io/env.zig/guide/getting-started |
 | **Schema Validation** | Define schemas with required fields, types, and custom validators. Errors for required, warnings for optional. | https://muhammad-fiaz.github.io/env.zig/guide/validation |
 | **Built-in Validators** | `required`, `boolean`, `integer`, `float`, `url`, `email`, `ipv4`, `hostname`, `port`, `range`, `minLength`, `maxLength`, `oneOf`. | https://muhammad-fiaz.github.io/env.zig/api/validators |
-| **Type-Safe Accessors** | `get`, `getString`, `getAlloc`, `getOrDefault`, `getBool`, `getInt`, `getFloat`, `getEnum`, `getValue`, `getList` (owned) + `getOs`, `getWithFallback`, `requireOs`, `containsOs`. | https://muhammad-fiaz.github.io/env.zig/api/env |
+| **Type-Safe Accessors** | `get`, `getString`, `getAlloc`, `getOrDefault`, `getBool`, `getInt`, `getFloat`, `getEnum`, `getValue`, `getList` (owned) + `getRuntime`, `getWithFallback`, `requireRuntime`, `containsRuntime`. | https://muhammad-fiaz.github.io/env.zig/api/env |
 | **Serialization** | Write back to `.env` with quoting, sorting, trailing newlines; shared `needsQuoting`/`escapedForChar` helpers; `parse(serialize(x))` round-trip preserved. | https://muhammad-fiaz.github.io/env.zig/guide/serialization |
 | **Insertion Order** | Guaranteed order (unlike `std.process.Environ`). | https://muhammad-fiaz.github.io/env.zig/api/env |
 | **Cache** | Standalone `Cache` for memoization (no longer owned by `Env`). | https://muhammad-fiaz.github.io/env.zig/api/env |
@@ -258,7 +258,6 @@ pub fn main(init: std.process.Init) !void {
 
 ```zig
 const runtime = envMod.runtime;
-const Scope = envMod.Scope;
 
 // Native runtime (process-global, thread-unsafe)
 try runtime.set("MY_KEY", "value");
@@ -266,18 +265,18 @@ const v = runtime.get("MY_KEY"); // ?[]const u8, borrowed
 try runtime.unset("MY_KEY");
 
 // Env + runtime fallback (like $VAR)
-const host = env.getOs("HOST") orelse "localhost";
-try env.loadOsEnv(); // import all OS vars
-try env.loadOsEnvWithPrefix("APP_"); // APP_PORT -> PORT
-try env.exportToOsEnv();
+const host = env.getRuntime("HOST") orelse "localhost";
+try env.loadRuntime(); // import all runtime vars
+try env.loadRuntimeWithPrefix("APP_"); // APP_PORT -> PORT
+try env.exportToRuntime();
 
 // For child processes
 var map = try env.toEnvironMap(allocator);
 defer map.deinit();
 
-// Temporary $env isolation
+// Temporary $env isolation (snapshot-backed, nesting LIFO)
 {
-    var scope = Scope.init(allocator);
+    var scope = try runtime.scope(allocator);
     defer scope.deinit();
     try scope.set("TMP", "temporary");
     // restored on deinit
@@ -349,11 +348,10 @@ try es.set("PORT", "9090");
 
 ## Examples
 
-The `examples/` directory contains **14 comprehensive, runnable examples** covering all error paths, callbacks and returns:
+The `examples/` directory contains **13 comprehensive, runnable examples** covering all error paths, callbacks and returns:
 
 - **Basic** - Set/get, type-safe accessors, iteration.
 - **Interpolation** - Nested `${VAR}`, defaults, OS fallback, `$env:VAR`.
-- **OS Environment** - Native `runtime` (`OsEnv` alias), `Scope`, `Snapshot`, `Environ.Map` (Windows/Linux/macOS).
 - **Runtime** - `runtime.get/set/unset`, missing vs empty, key validation, long values, snapshot/scope.
 - **Child Env** - `toEnvironMap`/`applyToEnvironMap` plus POSIX/Windows blocks for `spawn`.
 - **Unicode** - UTF-8 values, emoji, runtime round-trip, serialize/parse preservation.
@@ -362,16 +360,16 @@ The `examples/` directory contains **14 comprehensive, runnable examples** cover
 - **Clone & Merge** - Deep copy and default merging.
 - **Cache** - Standalone `Cache` API (no longer owned by `Env`).
 - **Iterator** - Borrowed `peek`, `skip`, `reset`, `collect` (no allocation).
-- **File I/O** - `load`/`save`/`loadMany`/`reload`, `loadOsEnvWithPrefix`, `exportToOsEnv` with correct `FileNotFound`/`PermissionDenied`/`IoError` returns.
+- **File I/O** - `load`/`save`/`loadMany`/`reload`, `loadRuntimeWithPrefix`, `exportToRuntime` with correct `FileNotFound`/`PermissionDenied`/`IoError` returns.
 - **Error Handling** - `strict` mode with specific errors (`InvalidKey`, ...), `FileNotFound`, `CircularDependency`, `NoSpaceLeft` via `Writer`.
-- **Type-Safe** - `getBool`/`getInt`/`getFloat`/`getEnum`/`getList` (owned)/`getValue` with `null` on missing, `TypeMismatch` via `tryGet*`, `getOs`/`containsOs`.
+- **Type-Safe** - `getBool`/`getInt`/`getFloat`/`getEnum`/`getList` (owned)/`getValue` with `null` on missing, `TypeMismatch` via `tryGet*`, `getRuntime`/`containsRuntime`.
 
 To run:
 
 ```bash
 zig build example
 zig-out/bin/basic_example
-zig-out/bin/os_env_example
+zig-out/bin/runtime_example
 zig-out/bin/file_io_example
 zig-out/bin/error_handling_example
 zig-out/bin/type_safe_example

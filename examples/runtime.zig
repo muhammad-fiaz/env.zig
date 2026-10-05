@@ -70,9 +70,9 @@ pub fn main(init: std.process.Init) !void {
         });
     }
 
-    // Scope with automatic restoration.
+    // Scope with automatic restoration (built on snapshot, nesting LIFO).
     {
-        var scope = envMod.Scope.init(allocator);
+        var scope = try runtime.scope(allocator);
         defer scope.deinit();
         try scope.set("ENV_ZIG_DEMO_RT", "scoped");
         try scope.unset("ENV_ZIG_DEMO_RT_EMPTY");

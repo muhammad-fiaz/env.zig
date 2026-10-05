@@ -20,7 +20,7 @@ Complete working examples for env.zig.
 ## Running Examples
 
 ```bash
-# Run all examples (14 total)
+# Run all examples (13 total)
 zig build example
 
 # Run a specific example
@@ -31,12 +31,11 @@ zig-out/bin/cache_example
 zig-out/bin/iterator_example
 zig-out/bin/validation_example
 zig-out/bin/serialization_example
-zig-out/bin/os_env_example
+zig-out/bin/runtime_example
 zig-out/bin/file_io_example
 zig-out/bin/error_handling_example
 zig-out/bin/type_safe_example
 zig-out/bin/unicode_example
-zig-out/bin/runtime_example
 zig-out/bin/child_env_example
 ```
 
@@ -51,7 +50,9 @@ zig-out/bin/child_env_example
 | [Iterator](/examples/iterator) | Borrowed iterator with peek, skip, reset, and collect |
 | [Validation](/examples/validation) | Schema validation with built-in validators |
 | [Serialization](/examples/serialization) | Serialize to .env format with sorting and quoting |
-| [OS Environment](/examples/os-env) | Cross-platform runtime env via `env.runtime` with Scope & snapshot |
+| [Runtime](/examples/runtime) | Cross-platform runtime env via `env.runtime` with scope & snapshot |
+| [Child Env](/examples/child-env) | `toEnvironMap`/`applyToEnvironMap` for child processes |
+| [Unicode](/examples/unicode) | UTF-8 values, emoji, runtime round-trip |
 | [File I/O](/examples/file_io) | Load/save, loadMany, reload, prefix filtering, export |
 | [Error Handling](/examples/error_handling) | Strict mode, diagnostics, FileNotFound, validation levels |
-| [Type-Safe](/examples/type_safe) | getBool/getInt/getFloat/getEnum/getList/getValue with OS fallback |
+| [Type-Safe](/examples/type_safe) | getBool/getInt/getFloat/getEnum/getList/getValue with runtime fallback |

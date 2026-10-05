@@ -22,7 +22,6 @@ head:
 ```zig
 const envMod = @import("env");
 const runtime = envMod.runtime;
-const Scope = envMod.Scope;
 
 // Direct runtime access (cross-platform, process-global, thread-unsafe)
 try runtime.set("MY_KEY", "my_value");
@@ -33,38 +32,38 @@ try runtime.unset("MY_KEY");
 var env = envMod.Env.init(allocator, .{});
 defer env.deinit();
 try env.load(".env");
-const host = env.getOs("HOST") orelse "localhost"; // Env first, then runtime
-try env.loadOsEnv();               // import all OS vars into Env
-try env.loadOsEnvIfMissing();      // only missing keys
-try env.loadOsEnvWithPrefix("APP_"); // APP_PORT -> PORT
-try env.exportToOsEnv();           // push Env -> OS
+const host = env.getRuntime("HOST") orelse "localhost"; // Env first, then runtime
+try env.loadRuntime();               // import all OS vars into Env
+try env.loadRuntimeIfMissing();      // only missing keys
+try env.loadRuntimeWithPrefix("APP_"); // APP_PORT -> PORT
+try env.exportToRuntime();           // push Env -> OS
 ```
 
 ## Import / Export
 
 ```zig
 // Import everything
-try env.loadOsEnv();
+try env.loadRuntime();
 
 // Import only keys with prefix, stripped
 // OS: APP_PORT=8080 -> Env: PORT=8080
-try env.loadOsEnvWithPrefix("APP_");
+try env.loadRuntimeWithPrefix("APP_");
 
 // Export
-try env.exportToOsEnv();
+try env.exportToRuntime();
 
 // Also via config:
-var env2 = envMod.Env.init(allocator, .{ .exportToEnv = true });
+var env2 = envMod.Env.init(allocator, .{ .exportToRuntime = true });
 try env2.set("FOO", "bar"); // automatically sets OS env too
 ```
 
-## `getOs` / `containsOs` / `requireOs`
+## `getRuntime` / `containsRuntime` / `requireRuntime`
 
 ```zig
 // Checks Env first, then runtime (like shell $VAR fallback)
-const url = env.getOs("DATABASE_URL");
-const ok = env.containsOs("HOME");
-const val = try env.requireOs("API_KEY"); // error.MissingRequired if absent
+const url = env.getRuntime("DATABASE_URL");
+const ok = env.containsRuntime("HOME");
+const val = try env.requireRuntime("API_KEY"); // error.MissingRequired if absent
 
 // With default
 const port = env.getWithFallback("PORT", "3000");
@@ -99,7 +98,7 @@ OS environment is **global**. `Scope` saves original values and restores on `dei
 
 ```zig
 {
-    var scope = Scope.init(allocator);
+    var scope = try runtime.scope(allocator);
     defer scope.deinit();
     try scope.set("TMP_KEY", "temporary");
     try scope.unset("REMOVE_ME");
@@ -112,7 +111,7 @@ OS environment is **global**. `Scope` saves original values and restores on `dei
 ### With helper
 
 ```zig
-try Scope.with(allocator, &.{ .{ .key = "FOO", .value = "bar" } }, struct {
+try runtime.Scope.with(allocator, &.{ .{ .key = "FOO", .value = "bar" } }, struct {
     fn run() !void { std.debug.print("FOO={s}\n", .{runtime.get("FOO").?}); }
 }.run);
 ```

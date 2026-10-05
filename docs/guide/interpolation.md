@@ -56,7 +56,7 @@ DEBUG_MSG=${DEBUG:+enabled}
 REQUIRED=${API_KEY:?API_KEY is required}
 ```
 
-OS fallback walks: `Env` entries → `OsEnv.get` (POSIX `getenv` / Windows `GetEnvironmentVariableW`).
+OS fallback walks: `Env` entries → `runtime.get` (POSIX `getenv` / Windows `GetEnvironmentVariableW`).
 
 ## Circular Detection
 

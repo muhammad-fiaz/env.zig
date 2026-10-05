@@ -5,7 +5,7 @@ description: Type-safe accessors in env.zig — getBool, getInt, getFloat, getEn
 
 # Type-Safe Example
 
-Covers `get`/`getBool`/`getInt`/`getFloat`/`getEnum`/`getList` with `getOs`/`getWithFallback` and `containsOs`.
+Covers `get`/`getBool`/`getInt`/`getFloat`/`getEnum`/`getList` with `getOs`/`getWithFallback` and `containsRuntime`.
 
 ## Source
 

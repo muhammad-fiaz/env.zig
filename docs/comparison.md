@@ -30,24 +30,24 @@ They are complementary — most apps use both.
 | **Source** | OS process env vars | `.env` files + OS env + manual entries |
 | **File Parsing** | No | Yes (`.env`, `export` aware, quotes, inline comments) |
 | **Variable Interpolation** | No | Yes (`${VAR}`, `$VAR`, `${VAR:-d}`, `${VAR:+a}`, `${VAR:?e}`, nested, `$env:VAR`) |
-| **OS Fallback** | N/A | Yes (Env → `OsEnv.get` → `getenv`/`GetEnvironmentVariableW`) |
+| **OS Fallback** | N/A | Yes (Env → `runtime.get` → `getenv`/`GetEnvironmentVariableW`) |
 | **Shell Compatibility** | N/A | `export KEY=val`, `$env:` prefix |
 | **Schema Validation** | No | Yes (built-in + custom) |
 | **Type-Safe Accessors** | No (raw `[]const u8`) | Yes (`getBool`, `getInt`, `getFloat`, `getEnum`, `getList`, `getOs`) |
-| **Write & Update** | `put()` only | `set()` / `setOs()` + `merge()` |
-| **Delete** | `swapRemove()` / `orderedRemove()` | `remove()` / `unsetOs()` + `clear()` |
+| **Write & Update** | `put()` only | `set()` / `setAndExport()` + `merge()` |
+| **Delete** | `swapRemove()` / `orderedRemove()` | `remove()` / `unsetAndExport()` + `clear()` |
 | **Insertion Order** | OS-dependent | Guaranteed |
 | **Serialization** | No | Yes (quoting via `helpers.needsQuoting`, `helpers.escapedForChar`) |
 | **Cache** | No | Yes |
 | **Iterator** | Map iterator | `next`/`peek`/`reset`/`skip`/`remaining`/`collect` |
-| **Config Options** | OS-specific | 15+ (`strict`, `trim`, `interpolate`, `exportToEnv`, `sortKeys`, etc.) |
+| **Config Options** | OS-specific | 15+ (`strict`, `trim`, `interpolate`, `exportToRuntime`, `sortKeys`, etc.) |
 | **Case Sensitivity** | Windows: case-insensitive | Env: case-sensitive; OS: Windows-insensitive via `Wyhash`/`eqlIgnoreCaseWtf8` |
 | **Multiple Files** | N/A | Yes (`loadMany`) |
 | **Override Control** | N/A | Yes (`override`) |
 | **Strict Mode** | N/A | Yes |
 | **File I/O** | No | Yes (`load`/`save`) |
 | **Temporary Scopes** | No | Yes (`Scope`/`EnvScope`/`Snapshot`/`with`) |
-| **OS Direct API** | `Map.get/put` only | `OsEnv.get/set/unset/getAll/snapshot` |
+| **OS Direct API** | `Map.get/put` only | `runtime.get/set/unset/getAll/snapshot` |
 | **Environ.Map Bridge** | `createMap` only | `toEnvironMap` / `applyToEnvironMap` |
 | **Clone/Merge** | `clone()` only | `clone()` + `merge()` |
 | **Allocator-Aware** | Yes | Yes |
@@ -71,12 +71,12 @@ Use `env.zig` when you need `.env` parsing, `export` compat, shell-like interpol
 var env = envMod.Env.init(allocator, .{ .interpolate = true });
 defer env.deinit();
 try env.load(".env");
-try env.loadOsEnvWithPrefix("APP_"); // APP_PORT -> PORT
+try env.loadRuntimeWithPrefix("APP_"); // APP_PORT -> PORT
 const port = env.getInt(u16, "PORT") orelse 3000;
 try env.set("NEW_KEY", "value");
 _ = env.remove("DEBUG");
 {
-    var scope = envMod.Scope.init(allocator);
+    var scope = try runtime.scope(allocator);
     defer scope.deinit();
     try scope.set("TMP", "temp");
 }
@@ -88,11 +88,11 @@ _ = env.remove("DEBUG");
 var appEnv = envMod.Env.init(allocator, .{});
 defer appEnv.deinit();
 try appEnv.load(".env");
-try appEnv.loadOsEnvIfMissing(); // OS fills missing only
+try appEnv.loadRuntimeIfMissing(); // OS fills missing only
 // Or: Env first, then OS fallback per-key:
-const dbUrl = appEnv.getOs("DATABASE_URL") orelse "postgres://localhost/default";
+const dbUrl = appEnv.getRuntime("DATABASE_URL") orelse "postgres://localhost/default";
 // Or push Env to OS for children:
-try appEnv.exportToOsEnv();
+try appEnv.exportToRuntime();
 var map = try appEnv.toEnvironMap(allocator);
 defer map.deinit();
 // spawn with map
@@ -102,7 +102,7 @@ defer map.deinit();
 
 | Use Case | Recommended |
 |----------|-------------|
-| Raw OS read | `std.process.Environ` or `env.zig` `OsEnv` |
+| Raw OS read | `std.process.Environ` or `env.zig` `runtime` |
 | Parsing `.env` / `export` | `env.zig` |
 | Interpolation / defaults / `$env:` | `env.zig` |
 | Schema validation | `env.zig` |

@@ -7,14 +7,12 @@ const helpers = @import("internal/helpers.zig");
 
 const Config = config.Config;
 
-/// Write .env entries to a file or buffer.
-/// Uses the same quoting rules as `Serializer` via shared helpers,
-/// so both representations are identical.
+/// Write `.env` entries to a file or buffer.
+/// Single serialization implementation: buffer output calls
+/// `Serializer.serialize` with a fixed-buffer allocator, guaranteeing
+/// byte-for-byte equivalence.
 pub const Writer = struct {
     /// Write entries to a file at the given path.
-    /// Honors `cfg.sortKeys` (sorted output when enabled).
-    /// Maps `FileNotFound`/`AccessDenied` to the library error model
-    /// without collapsing unrelated I/O failures.
     pub fn writeToFile(
         allocator: std.mem.Allocator,
         path: []const u8,
@@ -22,7 +20,7 @@ pub const Writer = struct {
         cfg: Config,
     ) !void {
         for (entries) |entry| {
-            if (std.mem.indexOfScalar(u8, entry.key, 0) != null) return error.InvalidValue;
+            if (!helpers.isValidKey(entry.key)) return error.InvalidKey;
             if (std.mem.indexOfScalar(u8, entry.value, 0) != null) return error.InvalidValue;
         }
         const content = if (cfg.sortKeys)
@@ -45,71 +43,40 @@ pub const Writer = struct {
         };
     }
 
-    /// Write entries to a provided buffer and return the written slice.
-    /// Produces exactly the same bytes as `Serializer.serialize`.
-    /// Returns `error.NoSpaceLeft` without claiming partial success and
-    /// returns `error.InvalidValue` for embedded NUL bytes.
-    pub fn writeToBuffer(
-        buf: []u8,
-        entries: []const SerEntry,
-        cfg: Config,
-    ) ![]const u8 {
-        var pos: usize = 0;
-        for (entries, 0..) |entry, idx| {
-            if (std.mem.indexOfScalar(u8, entry.key, 0) != null) return error.InvalidValue;
-            if (std.mem.indexOfScalar(u8, entry.value, 0) != null) return error.InvalidValue;
-            const isLast = idx + 1 == entries.len;
-            for (entry.key) |ch| {
-                if (pos >= buf.len) return error.NoSpaceLeft;
-                buf[pos] = ch;
-                pos += 1;
-            }
-            if (pos >= buf.len) return error.NoSpaceLeft;
-            buf[pos] = '=';
-            pos += 1;
-            if (helpers.needsQuoting(entry.value, cfg.quoteSpaces)) {
-                if (pos >= buf.len) return error.NoSpaceLeft;
-                buf[pos] = '"';
-                pos += 1;
-                for (entry.value) |ch| {
-                    if (helpers.escapedForChar(ch)) |esc| {
-                        if (pos + esc.len > buf.len) return error.NoSpaceLeft;
-                        @memcpy(buf[pos .. pos + esc.len], esc);
-                        pos += esc.len;
-                    } else {
-                        if (pos >= buf.len) return error.NoSpaceLeft;
-                        buf[pos] = ch;
-                        pos += 1;
-                    }
-                }
-                if (pos >= buf.len) return error.NoSpaceLeft;
-                buf[pos] = '"';
-                pos += 1;
-            } else {
-                for (entry.value) |ch| {
-                    if (pos >= buf.len) return error.NoSpaceLeft;
-                    buf[pos] = ch;
-                    pos += 1;
-                }
-            }
-            if (!isLast or cfg.trailingNewline) {
-                if (pos >= buf.len) return error.NoSpaceLeft;
-                buf[pos] = '\n';
-                pos += 1;
-            }
-        }
-        return buf[0..pos];
+    /// Write entries to `buf`, returning the written slice.
+    /// Byte-identical to `Serializer.serialize`. `error.NoSpaceLeft`
+    /// claims no partial success; `error.InvalidKey`/`error.InvalidValue`
+    /// for non-`.env` keys or NUL values.
+    pub fn writeToBuffer(buf: []u8, entries: []const SerEntry, cfg: Config) ![]const u8 {
+        var fba = std.heap.FixedBufferAllocator.init(buf);
+        const content = Serializer.serialize(fba.allocator(), entries, cfg) catch |err| switch (err) {
+            error.OutOfMemory => return error.NoSpaceLeft,
+            else => |e| return e,
+        };
+        return buf[0..content.len];
     }
 };
 
-test "writeToBuffer" {
-    var buf: [256]u8 = undefined;
-
+test "writeToBuffer equals serializer" {
     const entries = [_]SerEntry{
         .{ .key = "KEY1", .value = "value1" },
-        .{ .key = "KEY2", .value = "value2" },
+        .{ .key = "MSG", .value = "hello world # hi" },
+        .{ .key = "EMPTY", .value = "" },
     };
+    const cfg: Config = .{};
+    var buf: [256]u8 = undefined;
+    const written = try Writer.writeToBuffer(&buf, &entries, cfg);
+    const expected = try Serializer.serialize(std.testing.allocator, &entries, cfg);
+    defer std.testing.allocator.free(expected);
+    try std.testing.expectEqualStrings(expected, written);
+}
 
-    const written = try Writer.writeToBuffer(&buf, &entries, .{});
-    try std.testing.expectEqualStrings("KEY1=value1\nKEY2=value2\n", written);
+test "writeToBuffer exact fit and one short" {
+    const entries = [_]SerEntry{.{ .key = "A", .value = "1" }};
+    var exact: [4]u8 = undefined; // "A=1\n"
+    try std.testing.expectEqualStrings("A=1\n", try Writer.writeToBuffer(&exact, &entries, .{}));
+    var short: [3]u8 = undefined;
+    try std.testing.expectError(error.NoSpaceLeft, Writer.writeToBuffer(&short, &entries, .{}));
+    var empty: [0]u8 = undefined;
+    try std.testing.expectError(error.NoSpaceLeft, Writer.writeToBuffer(&empty, &entries, .{}));
 }

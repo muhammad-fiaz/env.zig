@@ -59,7 +59,7 @@ pub fn main(init: std.process.Init) !void {
     try env.parseString("HOST=localhost\nPORT=8080\n");
 
     // Read values with type-safe accessors + OS fallback
-    const host = env.getOs("HOST") orelse "localhost"; // Env → OsEnv (getenv/GetEnvironmentVariableW)
+    const host = env.getRuntime("HOST") orelse "localhost"; // Env → runtime (getenv/GetEnvironmentVariableW)
     const port = env.getInt(u16, "PORT") orelse 3000;
     const debug = env.getBool("DEBUG") orelse false;
 
@@ -78,15 +78,15 @@ pub fn main(init: std.process.Init) !void {
     _ = try env.remove("DEBUG");
 
     // OS bridging (Windows/Linux/macOS via std.process.Environ + minimal set/unset)
-    try env.loadOsEnvIfMissing(); // import OS vars only if missing
-    try env.loadOsEnvWithPrefix("APP_"); // APP_PORT=8080 → PORT=8080
-    try env.exportToOsEnv(); // push to process env for children
+    try env.loadRuntimeIfMissing(); // import OS vars only if missing
+    try env.loadRuntimeWithPrefix("APP_"); // APP_PORT=8080 → PORT=8080
+    try env.exportToRuntime(); // push to process env for children
     const withDefault = env.getWithFallback("PORT", "3000");
-    const required = try env.requireOs("DATABASE_URL");
+    const required = try env.requireRuntime("DATABASE_URL");
 
     // Temporary $env isolation for tests
     {
-        var scope = envMod.Scope.init(allocator);
+        var scope = try runtime.scope(allocator);
         defer scope.deinit();
         try scope.set("TMP", "temporary");
     }
@@ -224,10 +224,10 @@ var env = envMod.Env.init(allocator, .{
 const value = env.get("KEY");
 
 // OS-aware (Env → runtime fallback)
-const value2 = env.getOs("KEY"); // ?[]const u8
+const value2 = env.getRuntime("KEY"); // ?[]const u8
 const withDefault = env.getWithFallback("PORT", "3000");
-const required = try env.requireOs("API_KEY"); // error.MissingRequired
-const is_os = env.containsOs("HOME");
+const required = try env.requireRuntime("API_KEY"); // error.MissingRequired
+const is_os = env.containsRuntime("HOME");
 
 // Typed accessors (missing -> null; invalid -> null; tryGet* -> TypeMismatch)
 const port = env.getInt(u16, "PORT");       // ?u16
@@ -241,7 +241,7 @@ const hosts = env.getList(allocator, "HOSTS", ','); // ?[][]const u8
 
 // Check existence (missing vs empty are distinct)
 if (env.contains("KEY")) { ... }
-if (env.containsOs("KEY")) { ... }
+if (env.containsRuntime("KEY")) { ... }
 
 // Direct runtime (preferred namespace; borrowed on Windows until next get)
 const home = envMod.runtime.get("HOME");

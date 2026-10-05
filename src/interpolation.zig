@@ -1,12 +1,12 @@
 const std = @import("std");
-const osEnv = @import("os_env.zig");
+const runtime = @import("runtime.zig");
 
 /// Maximum number of interpolation references tracked for cycle detection.
 const maxDepthLimit = 64;
 
-/// Resolve variable interpolation in a value string.
-/// Replaces ${VAR}, ${VAR:-default}, ${VAR:+alt}, $VAR with values from map or OS env.
-/// OS fallback: if not found in vars, checks process environment (cross-platform).
+/// Resolve variable interpolation. Precedence: in-memory `vars`, then
+/// `runtime.get`, then default expressions. `:=`/`=` never mutate either
+/// store; they behave like `:-`/`-` for the current value.
 pub fn interpolate(
     allocator: std.mem.Allocator,
     value: []const u8,
@@ -20,8 +20,7 @@ pub fn interpolate(
 
 fn lookupVar(name: []const u8, vars: *const std.StringHashMap([]const u8)) ?[]const u8 {
     if (vars.get(name)) |v| return v;
-    // OS fallback (POSIX getenv / Windows GetEnvironmentVariableW).
-    return osEnv.OsEnv.get(name);
+    return runtime.get(name);
 }
 
 const BraceParse = struct {
@@ -393,9 +392,8 @@ test "interpolate alt value :+" {
 }
 
 test "interpolate os fallback" {
-    const os = @import("os_env.zig");
-    try os.OsEnv.set("ENV_ZIG_INTERP_OS_FALLBACK_TEST", "from_os");
-    defer os.OsEnv.unset("ENV_ZIG_INTERP_OS_FALLBACK_TEST") catch {};
+    try runtime.set("ENV_ZIG_INTERP_OS_FALLBACK_TEST", "from_os");
+    defer runtime.unset("ENV_ZIG_INTERP_OS_FALLBACK_TEST") catch {};
     var vars = std.StringHashMap([]const u8).init(std.testing.allocator);
     defer vars.deinit();
     const r = try interpolate(std.testing.allocator, "${ENV_ZIG_INTERP_OS_FALLBACK_TEST}", &vars, 10);
@@ -413,9 +411,8 @@ test "interpolate nested default" {
 }
 
 test "interpolate $env prefix" {
-    const os = @import("os_env.zig");
-    try os.OsEnv.set("ENV_ZIG_ENV_PREFIX_TEST", "env_val");
-    defer os.OsEnv.unset("ENV_ZIG_ENV_PREFIX_TEST") catch {};
+    try runtime.set("ENV_ZIG_ENV_PREFIX_TEST", "env_val");
+    defer runtime.unset("ENV_ZIG_ENV_PREFIX_TEST") catch {};
     var vars = std.StringHashMap([]const u8).init(std.testing.allocator);
     defer vars.deinit();
     const r1 = try interpolate(std.testing.allocator, "${env:ENV_ZIG_ENV_PREFIX_TEST}", &vars, 10);

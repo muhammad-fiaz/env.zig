@@ -70,13 +70,13 @@ pub fn main(init: std.process.Init) !void {
     try env4.reload(".env.a.tmp");
     try stdout.print("After reload count={d}\n", .{env4.count()});
 
-    // 5) export prefix and OS bridge
-    try envMod.OsEnv.set("APP_FILE_IO_TEST", "prefix_val");
-    defer envMod.OsEnv.unset("APP_FILE_IO_TEST") catch {};
+    // 5) export prefix and runtime bridge
+    try envMod.runtime.set("APP_FILE_IO_TEST", "prefix_val");
+    defer envMod.runtime.unset("APP_FILE_IO_TEST") catch {};
     var env5 = envMod.Env.init(allocator, .{});
     defer env5.deinit();
-    try env5.loadOsEnvWithPrefix("APP_");
-    try stdout.print("loadOsEnvWithPrefix APP_FILE_IO_TEST -> FILE_IO_TEST={s}\n", .{env5.get("FILE_IO_TEST") orelse "missing"});
+    try env5.loadRuntimeWithPrefix("APP_");
+    try stdout.print("loadRuntimeWithPrefix APP_FILE_IO_TEST -> FILE_IO_TEST={s}\n", .{env5.get("FILE_IO_TEST") orelse "missing"});
 
     // 6) Serialize with options
     var sorted = envMod.Env.init(allocator, .{ .sortKeys = true, .quoteSpaces = true });

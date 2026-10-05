@@ -25,14 +25,14 @@ pub const Config = struct {
     /// next line into the current value. When false, a trailing `\`
     /// is kept literally.
     allowMultiline: bool = false,
-    /// Maximum interpolation recursion depth.
+    /// Maximum interpolation recursion depth. Actually controls
+    /// interpolation; no hidden hard-coded override.
     maxInterpolationDepth: usize = 10,
-    /// Line-comment character. Only `#` is supported; any other value
-    /// is rejected by `validate`.
-    commentChar: u8 = '#',
-    /// Automatically export `Env.set`/`Env.remove` mutations to the
-    /// process environment. Failures are returned to the caller.
-    exportToEnv: bool = false,
+    /// Automatically export `Env.set`/`Env.remove` to the runtime
+    /// environment via the single `runtime.set`/`runtime.unset`
+    /// implementation. Failures are returned. Prefer explicit
+    /// `exportToRuntime()` / `setAndExport()` for clarity.
+    exportToRuntime: bool = false,
     /// Sort keys when serializing.
     sortKeys: bool = false,
     /// Emit a trailing newline after the last entry when serializing.
@@ -42,11 +42,10 @@ pub const Config = struct {
     /// so that `parse(serialize(parse(x)))` preserves semantics.
     quoteSpaces: bool = true,
 
-    /// Validate the configuration. Returns `error.InvalidConfig` style
-    /// `error.InvalidValue` when `commentChar` is unsupported.
+    /// Validate the configuration.
     pub fn validate(self: Config) !void {
-        if (self.commentChar != '#') return error.InvalidValue;
         if (self.maxInterpolationDepth == 0) return error.InvalidValue;
+        if (self.maxInterpolationDepth > 64) return error.InvalidValue;
     }
 
     /// Builder-style configuration.

@@ -95,13 +95,13 @@ pub fn main(init: std.process.Init) !void {
     try stdout.print("tryGetBool MISSING -> {any} (null)\n", .{try env.tryGetBool("MISSING")});
     try stdout.print("tryGetEnum MODE -> {any}\n", .{try env.tryGetEnum(Mode, "MODE")});
 
-    // contains / containsOs
-    try stdout.print("contains PORT={} containsOs HOME={}\n", .{ env.contains("PORT"), env.containsOs("HOME") });
+    // contains / containsRuntime
+    try stdout.print("contains PORT={} containsRuntime HOME={}\n", .{ env.contains("PORT"), env.containsRuntime("HOME") });
 
-    // OS fallback display
-    try envMod.OsEnv.set("TYPE_SAFE_OS_TEST", "from_os");
-    defer envMod.OsEnv.unset("TYPE_SAFE_OS_TEST") catch {};
-    try stdout.print("getOs TYPE_SAFE_OS_TEST = {s}\n", .{env.getOs("TYPE_SAFE_OS_TEST").?});
+    // Runtime fallback display
+    try envMod.runtime.set("TYPE_SAFE_OS_TEST", "from_os");
+    defer envMod.runtime.unset("TYPE_SAFE_OS_TEST") catch {};
+    try stdout.print("getRuntime TYPE_SAFE_OS_TEST = {s}\n", .{env.getRuntime("TYPE_SAFE_OS_TEST").?});
 
     try stdout.flush();
 }

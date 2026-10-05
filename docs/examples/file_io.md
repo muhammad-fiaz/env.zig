@@ -5,7 +5,7 @@ description: File I/O with env.zig — load, save, loadMany, reload, and prefix-
 
 # File I/O Example
 
-Demonstrates file persistence, `loadMany` with override, `reload`, and `loadOsEnvWithPrefix`.
+Demonstrates file persistence, `loadMany` with override, `reload`, and `loadRuntimeWithPrefix`.
 
 ## Source
 

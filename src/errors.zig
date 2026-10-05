@@ -1,6 +1,7 @@
 const std = @import("std");
 
 /// The kind of error that occurred during env operations.
+/// Every variant is actually produced (no dead errors).
 pub const ErrorKind = enum {
     /// The file could not be found.
     fileNotFound,
@@ -12,12 +13,8 @@ pub const ErrorKind = enum {
     invalidKey,
     /// An invalid value was encountered.
     invalidValue,
-    /// An unquoted value contains whitespace (strict mode only).
-    unquotedWhitespace,
     /// A quote was not closed.
     unterminatedQuote,
-    /// An escape sequence is invalid.
-    invalidEscape,
     /// Interpolation has a circular dependency.
     circularDependency,
     /// Maximum interpolation depth exceeded.
@@ -95,9 +92,7 @@ pub const EnvError = error{
     ParseError,
     InvalidKey,
     InvalidValue,
-    UnquotedWhitespace,
     UnterminatedQuote,
-    InvalidEscape,
     CircularDependency,
     MaxDepthExceeded,
     MissingRequired,
@@ -114,9 +109,7 @@ pub fn diagnosticToError(diag: Diagnostic) EnvError {
         .parseError => error.ParseError,
         .invalidKey => error.InvalidKey,
         .invalidValue => error.InvalidValue,
-        .unquotedWhitespace => error.UnquotedWhitespace,
         .unterminatedQuote => error.UnterminatedQuote,
-        .invalidEscape => error.InvalidEscape,
         .circularDependency => error.CircularDependency,
         .maxDepthExceeded => error.MaxDepthExceeded,
         .missingRequired => error.MissingRequired,

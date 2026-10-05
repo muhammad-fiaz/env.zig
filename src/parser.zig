@@ -85,7 +85,7 @@ pub fn parse(
         result.errorsList.deinit(allocator);
     }
 
-    var lexer = Lexer.init(source, options.config);
+    var lexer = Lexer.init(source);
 
     while (true) {
         const tok = lexer.next();

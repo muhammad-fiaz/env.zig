@@ -28,9 +28,8 @@ The `Config` struct controls parsing, interpolation, and serialization behavior.
 | `strict` | `bool` | `false` | Fail on syntax errors instead of skipping invalid lines |
 | `allowInlineComments` | `bool` | `true` | Strip ` # comment` from unquoted values; quoted `#` is literal |
 | `allowMultiline` | `bool` | `false` | Backslash-newline continuation joins the next line |
-| `maxInterpolationDepth` | `usize` | `10` | Maximum interpolation recursion depth |
-| `commentChar` | `u8` | `#` | Line-comment character (only `#` is supported) |
-| `exportToEnv` | `bool` | `false` | Export `set`/`remove` to the process environment (failures returned) |
+| `maxInterpolationDepth` | `usize` | `10` | Maximum interpolation recursion depth (actually enforced) |
+| `exportToRuntime` | `bool` | `false` | Export `set`/`remove` via single `runtime` impl (prefer explicit `exportToRuntime()`) |
 | `sortKeys` | `bool` | `false` | Sort keys alphabetically when serializing |
 | `trailingNewline` | `bool` | `true` | Emit trailing `\n` after the last entry |
 | `quoteSpaces` | `bool` | `true` | Quote values needing quotes for a lossless round-trip |

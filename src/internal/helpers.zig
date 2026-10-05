@@ -3,24 +3,14 @@ const std = @import("std");
 /// Check if a string is a valid .env key.
 /// Valid keys start with a letter or underscore, followed by
 /// letters, digits, or underscores. This is intentionally stricter than
-/// runtime environment keys (which only reject empty, `=` and NUL):
-/// `.env` files require shell-portable identifiers.
+/// runtime environment keys (see `runtime.validateKey`): `.env` files
+/// require shell-portable identifiers.
 pub fn isValidKey(key: []const u8) bool {
     if (key.len == 0) return false;
     if (!std.ascii.isAlphabetic(key[0]) and key[0] != '_') return false;
     for (key[1..]) |ch| {
         if (!std.ascii.isAlphanumeric(ch) and ch != '_') return false;
     }
-    return true;
-}
-
-/// Validate a runtime environment key against actual platform rules.
-/// Rejects empty keys, keys containing `=` and keys containing NUL.
-/// Does not impose `.env`-style identifier restrictions.
-pub fn isValidRuntimeKey(key: []const u8) bool {
-    if (key.len == 0) return false;
-    if (std.mem.indexOfScalar(u8, key, '=') != null) return false;
-    if (std.mem.indexOfScalar(u8, key, 0) != null) return false;
     return true;
 }
 

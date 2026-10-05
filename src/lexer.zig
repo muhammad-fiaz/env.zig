@@ -1,27 +1,24 @@
 const std = @import("std");
 const token = @import("token.zig");
-const config = @import("config.zig");
 
 const Token = token.Token;
 const TokenType = token.TokenType;
-const Config = config.Config;
 
-/// A streaming lexer for .env files.
+/// Streaming lexer for `.env` files. Comment character is `#`
+/// (hard-coded; `KEY="a # b"` keeps `#` literally).
 pub const Lexer = struct {
     source: []const u8,
     pos: usize,
     line: usize,
     col: usize,
-    config: Config,
     atLineStart: bool,
 
-    pub fn init(source: []const u8, cfg: Config) Lexer {
+    pub fn init(source: []const u8) Lexer {
         return .{
             .source = source,
             .pos = 0,
             .line = 1,
             .col = 1,
-            .config = cfg,
             .atLineStart = true,
         };
     }
@@ -60,7 +57,7 @@ pub const Lexer = struct {
             };
         }
 
-        if (ch == self.config.commentChar) {
+        if (ch == '#') {
             self.skipToEndOfLine();
             return .{
                 .type = .comment,
@@ -202,12 +199,11 @@ pub const Lexer = struct {
 
         while (self.pos < self.source.len) {
             const ch = self.source[self.pos];
-            if (ch == '\n' or ch == '\r' or ch == '=' or
+            if (ch == '\n' or ch == '\r' or ch == '=' or ch == '#' or
                 ch == '"' or ch == '\'' or ch == '`' or std.ascii.isWhitespace(ch))
             {
                 break;
             }
-            if (ch == self.config.commentChar) break;
             self.pos += 1;
             self.col += 1;
         }
@@ -234,14 +230,14 @@ pub const Lexer = struct {
 };
 
 test "Lexer basic" {
-    var lex = Lexer.init("KEY=value\n", .{});
+    var lex = Lexer.init("KEY=value\n");
     const tok = lex.next();
     try std.testing.expectEqual(TokenType.key, tok.type);
     try std.testing.expectEqualStrings("KEY", tok.slice);
 }
 
 test "Lexer quoted value" {
-    var lex = Lexer.init("KEY=\"hello world\"\n", .{});
+    var lex = Lexer.init("KEY=\"hello world\"\n");
     _ = lex.next();
     const eq = lex.next();
     try std.testing.expectEqual(TokenType.equals, eq.type);
@@ -251,13 +247,13 @@ test "Lexer quoted value" {
 }
 
 test "Lexer comment" {
-    var lex = Lexer.init("# this is a comment\n", .{});
+    var lex = Lexer.init("# this is a comment\n");
     const tok = lex.next();
     try std.testing.expectEqual(TokenType.comment, tok.type);
 }
 
 test "Lexer interpolation" {
-    var lex = Lexer.init("${KEY}", .{});
+    var lex = Lexer.init("${KEY}");
     const tok = lex.next();
     try std.testing.expectEqual(TokenType.interpolation, tok.type);
     try std.testing.expectEqualStrings("${KEY}", tok.slice);
