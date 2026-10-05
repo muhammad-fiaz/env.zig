@@ -1,13 +1,13 @@
 ---
 title: Cache Example
-description: Working example of the built-in cache in env.zig for storing parsed values separately from environment entries.
+description: Working example of the standalone cache in env.zig for storing parsed values separately from environment entries.
 head:
   - - meta
     - property: og:title
       content: "Cache Example | env.zig"
   - - meta
     - name: description
-      content: Working example of the built-in cache in env.zig.
+      content: Working example of the standalone cache in env.zig.
   - - meta
     - name: keywords
       content: "zig, env, cache, storage, key-value, example, env.zig"
@@ -81,6 +81,49 @@ pub fn main(init: std.process.Init) !void {
 
 ```bash
 zig-out/bin/cache_example
+```
+
+## Example Output
+
+```env
+=== Cache Example ===
+
+Cache count: 2
+Cached token: abc123
+Has cached_token: true
+Has missing: false
+Updated token: new_token_456
+After remove, has cached_config: false
+Cache count after remove: 1
+Cache count after clear: 0
+
+Env entries still intact:
+  API_KEY = secret123
+  DATABASE_URL = postgres://localhost/mydb
+  PORT = 8080
+```
+
+## Before / After
+
+Cache state transitions during the run:
+
+```env
+# after two puts
+cached_token=abc123
+cached_config={ "timeout": 30 }
+```
+
+```env
+# after overwrite + remove + clear
+# (empty — count 0)
+```
+
+The `Env` store is untouched throughout:
+
+```env
+API_KEY=secret123
+DATABASE_URL=postgres://localhost/mydb
+PORT=8080
 ```
 
 ## See Also

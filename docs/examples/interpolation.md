@@ -15,7 +15,8 @@ head:
 
 # Interpolation Example
 
-Variable interpolation with `${VAR}` syntax.
+Variable interpolation with `${VAR}` syntax, defaults, alternates,
+required expressions, nesting, and `$env:` prefixes.
 
 ## Source Code
 
@@ -70,6 +71,49 @@ pub fn main(init: std.process.Init) !void {
 
 ```bash
 zig-out/bin/interpolation_example
+```
+
+## Example Output
+
+```env
+=== Interpolation Example ===
+
+Original values:
+  APP_NAME = myapp
+  DATABASE_HOST = localhost
+  DATABASE_PORT = 5432
+
+Interpolated values:
+  DATABASE_URL = postgres://localhost:5432/mydb
+  MESSAGE = hello world
+  SHORTCUT = myapp is running
+
+All resolved keys:
+  APP_NAME = myapp
+  DATABASE_HOST = localhost
+  DATABASE_PORT = 5432
+  DATABASE_URL = postgres://localhost:5432/mydb
+  GREETING = hello
+  MESSAGE = hello world
+  SHORTCUT = myapp is running
+```
+
+## Before / After
+
+Before interpolation the raw entries are:
+
+```env
+DATABASE_URL=postgres://${DATABASE_HOST}:${DATABASE_PORT}/mydb
+MESSAGE=${GREETING} world
+SHORTCUT=${APP_NAME} is running
+```
+
+After resolution with `interpolate = true`:
+
+```env
+DATABASE_URL=postgres://localhost:5432/mydb
+MESSAGE=hello world
+SHORTCUT=myapp is running
 ```
 
 ## See Also

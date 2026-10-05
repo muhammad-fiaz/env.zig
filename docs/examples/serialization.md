@@ -63,7 +63,7 @@ pub fn main(init: std.process.Init) !void {
 
 ## Key Concepts
 
-- **`env.serialize`** — Serialize to `.env` format string
+- **`env.serialize`** — Serialize to `.env` string
 - **`sortKeys`** — Sort keys alphabetically in output
 - **`quoteSpaces`** — Quote values containing spaces (e.g., `"super secret key"`)
 - **`env.save`** — Write directly to a file
@@ -72,6 +72,44 @@ pub fn main(init: std.process.Init) !void {
 
 ```bash
 zig-out/bin/serialization_example
+```
+
+## Example Output
+
+```env
+=== Serialization Example ===
+
+Serialized .env:
+DATABASE_URL=postgres://localhost:5432/mydb
+API_KEY=secret123
+PORT=8080
+DEBUG=true
+
+Sorted:
+API_KEY=secret123
+DATABASE_URL=postgres://localhost:5432/mydb
+DEBUG=true
+PORT=8080
+```
+
+## Before / After
+
+Insertion-order output (before sorting):
+
+```env
+DATABASE_URL=postgres://localhost:5432/mydb
+API_KEY=secret123
+PORT=8080
+DEBUG=true
+```
+
+Sorted output (`sortKeys = true`):
+
+```env
+API_KEY=secret123
+DATABASE_URL=postgres://localhost:5432/mydb
+DEBUG=true
+PORT=8080
 ```
 
 ## See Also

@@ -91,6 +91,68 @@ pub fn main(init: std.process.Init) !void {
 zig-out/bin/clone_merge_example
 ```
 
+## Example Output
+
+```env
+=== Clone & Merge Example ===
+
+Original env:
+  APP_NAME = MyApp
+  PORT = 8080
+  DEBUG = true
+
+Cloned env (independent copy):
+  APP_NAME = MyApp
+  PORT = 8080
+  DEBUG = true
+
+After modifying clone:
+  Original PORT = 8080
+  Cloned PORT = 9090
+  Original has NEW_KEY = false
+  Cloned has NEW_KEY = true
+
+Defaults env:
+  PORT = 3000
+  LOG_LEVEL = info
+  TIMEOUT = 30
+
+After merging defaults into env:
+  APP_NAME = MyApp
+  PORT = 3000
+  DEBUG = true
+  LOG_LEVEL = info
+  TIMEOUT = 30
+```
+
+## Before / After
+
+Before merging defaults:
+
+```env
+APP_NAME=MyApp
+PORT=8080
+DEBUG=true
+```
+
+Defaults store:
+
+```env
+PORT=3000
+LOG_LEVEL=info
+TIMEOUT=30
+```
+
+After `merge(&defaults)` (other wins):
+
+```env
+APP_NAME=MyApp
+PORT=3000
+DEBUG=true
+LOG_LEVEL=info
+TIMEOUT=30
+```
+
 ## See Also
 
 - [Clone & Merge Guide](/guide/clone-merge) for usage details

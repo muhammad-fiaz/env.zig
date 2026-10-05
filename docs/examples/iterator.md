@@ -15,7 +15,8 @@ head:
 
 # Iterator Example
 
-Iterator API with peek, skip, reset, and collect operations.
+Borrowed insertion-order iterator with peek, skip, reset, and collect
+(no allocation; `deinit` is a no-op).
 
 ## Source Code
 
@@ -52,7 +53,7 @@ pub fn main(init: std.process.Init) !void {
         try stdout.print("  {s} = {s}\n", .{ key, env.get(key).? });
     }
 
-    // Iterator API — allocates entries, release with deinit
+    // Iterator API — borrowed, no allocation; deinit is a no-op.
     try stdout.print("\nAll entries (via iterator):\n", .{});
     var it = env.iterator();
     defer it.deinit();
@@ -97,6 +98,60 @@ pub fn main(init: std.process.Init) !void {
 
 ```bash
 zig-out/bin/iterator_example
+```
+
+## Example Output
+
+```env
+=== Iterator Example ===
+
+All entries (via keys):
+  APP_NAME = myapp
+  PORT = 8080
+  DEBUG = true
+  LOG_LEVEL = info
+  DATABASE_URL = postgres://localhost/mydb
+
+All entries (via iterator):
+  APP_NAME = myapp
+  PORT = 8080
+  DEBUG = true
+  LOG_LEVEL = info
+  DATABASE_URL = postgres://localhost/mydb
+
+Peek first: APP_NAME = myapp
+Peek again: APP_NAME = myapp
+
+Remaining before skip: 5
+Remaining after skip(2): 3
+Next after skip: DEBUG = true
+
+After reset, next: APP_NAME
+
+Total entries: 5
+```
+
+## Before / After
+
+The iterated store (unchanged by iteration):
+
+```env
+APP_NAME=myapp
+PORT=8080
+DEBUG=true
+LOG_LEVEL=info
+DATABASE_URL=postgres://localhost/mydb
+```
+
+Iterator cursor states observed:
+
+```env
+# fresh iterator
+remaining=5
+# after skip(2)
+remaining=3
+# after reset
+next=APP_NAME
 ```
 
 ## See Also

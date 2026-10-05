@@ -350,7 +350,7 @@ try es.set("PORT", "9090");
 
 The `examples/` directory contains **13 comprehensive, runnable examples** covering all error paths, callbacks and returns:
 
-- **Basic** - Set/get, type-safe accessors, iteration.
+- **Basic** - Set/get, type-safe accessors, explicit `.env` + `.env.local` file creation, `loadMany` override.
 - **Interpolation** - Nested `${VAR}`, defaults, OS fallback, `$env:VAR`.
 - **Runtime** - `runtime.get/set/unset`, missing vs empty, key validation, long values, snapshot/scope.
 - **Child Env** - `toEnvironMap`/`applyToEnvironMap` plus POSIX/Windows blocks for `spawn`.

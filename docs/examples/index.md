@@ -43,7 +43,7 @@ zig-out/bin/child_env_example
 
 | Example | Description |
 |---------|-------------|
-| [Basic](/examples/basic) | Set/get values, type-safe accessors, iteration, serialization |
+| [Basic](/examples/basic) | Set/get, explicit `.env` + `.env.local` creation, `loadMany` override |
 | [Interpolation](/examples/interpolation) | Variable interpolation with `${VAR}` syntax |
 | [Clone & Merge](/examples/clone-merge) | Independent copies and default value merging |
 | [Cache](/examples/cache) | Standalone cache for parsed values |

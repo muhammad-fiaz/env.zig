@@ -122,7 +122,7 @@ zig-out/bin/validation_example
 
 ## Example Output
 
-```
+```env
 === Validation Example ===
 
 
@@ -135,6 +135,24 @@ Loaded config:
   PORT = 8080
   DEBUG = true
   LOG_LEVEL = info
+```
+
+## Before / After
+
+Validated input:
+
+```env
+APP_NAME=MyApp
+PORT=8080
+DEBUG=true
+LOG_LEVEL=info
+```
+
+Validation result: no errors; two warnings for optional missing keys:
+
+```env
+# [WARN] API_KEY: optional field is missing
+# [WARN] DATABASE_URL: optional field is missing
 ```
 
 ## Key Concepts
