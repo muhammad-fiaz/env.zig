@@ -1,5 +1,7 @@
 <div align="center">
 
+# ENV.zig
+
 <a href="https://muhammad-fiaz.github.io/env.zig/"><img src="https://img.shields.io/badge/docs-muhammad--fiaz.github.io%2Fenv.zig-blue" alt="Documentation"></a>
 <a href="https://ziglang.org/"><img src="https://img.shields.io/badge/Zig-0.17.0-orange.svg?logo=zig" alt="Zig Version"></a>
 <a href="https://github.com/muhammad-fiaz/env.zig"><img src="https://img.shields.io/github/stars/muhammad-fiaz/env.zig" alt="GitHub stars"></a>
