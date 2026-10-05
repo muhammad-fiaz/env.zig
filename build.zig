@@ -48,6 +48,9 @@ pub fn build(b: *std.Build) void {
         .{ .name = "file_io", .path = "examples/file_io.zig" },
         .{ .name = "error_handling", .path = "examples/error_handling.zig" },
         .{ .name = "type_safe", .path = "examples/type_safe.zig" },
+        .{ .name = "unicode", .path = "examples/unicode.zig" },
+        .{ .name = "runtime", .path = "examples/runtime.zig" },
+        .{ .name = "child_env", .path = "examples/child_env.zig" },
     };
     inline for (examples) |ex| {
         const exe = b.addExecutable(.{

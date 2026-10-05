@@ -13,6 +13,7 @@ pub const Lexer = struct {
     line: usize,
     col: usize,
     config: Config,
+    atLineStart: bool,
 
     pub fn init(source: []const u8, cfg: Config) Lexer {
         return .{
@@ -21,6 +22,7 @@ pub const Lexer = struct {
             .line = 1,
             .col = 1,
             .config = cfg,
+            .atLineStart = true,
         };
     }
 
@@ -49,6 +51,7 @@ pub const Lexer = struct {
                 self.col = 1;
                 self.line += 1;
             }
+            self.atLineStart = true;
             return .{
                 .type = .newline,
                 .slice = self.source[start..self.pos],
@@ -83,6 +86,7 @@ pub const Lexer = struct {
         if (ch == '=') {
             self.pos += 1;
             self.col += 1;
+            self.atLineStart = false;
             return .{
                 .type = .equals,
                 .slice = self.source[start..self.pos],
@@ -92,22 +96,28 @@ pub const Lexer = struct {
         }
 
         if (ch == '"') {
-            return self.readQuoted(.quoted_value, '"');
+            self.atLineStart = false;
+            return self.readQuoted(.quotedValue, '"');
         }
 
         if (ch == '\'') {
-            return self.readQuoted(.single_quoted_value, '\'');
+            self.atLineStart = false;
+            return self.readQuoted(.singleQuotedValue, '\'');
         }
 
         if (ch == '`') {
-            return self.readQuoted(.backtick_quoted_value, '`');
+            self.atLineStart = false;
+            return self.readQuoted(.backtickQuotedValue, '`');
         }
 
         if (ch == '$' and self.pos + 1 < self.source.len and self.source[self.pos + 1] == '{') {
+            self.atLineStart = false;
             return self.readInterpolation();
         }
 
-        return self.readUnquoted();
+        const wasLineStart = self.atLineStart;
+        self.atLineStart = false;
+        return self.readUnquoted(wasLineStart);
     }
 
     fn readQuoted(self: *Lexer, tt: TokenType, quote: u8) Token {
@@ -185,28 +195,25 @@ pub const Lexer = struct {
         };
     }
 
-    fn readUnquoted(self: *Lexer) Token {
+    fn readUnquoted(self: *Lexer, wasLineStart: bool) Token {
         const start = self.pos;
         const startLine = self.line;
         const startCol = self.col;
 
         while (self.pos < self.source.len) {
             const ch = self.source[self.pos];
-            if (ch == '\n' or ch == '\r' or ch == '=' or ch == '#' or
+            if (ch == '\n' or ch == '\r' or ch == '=' or
                 ch == '"' or ch == '\'' or ch == '`' or std.ascii.isWhitespace(ch))
             {
                 break;
             }
+            if (ch == self.config.commentChar) break;
             self.pos += 1;
             self.col += 1;
         }
 
         return .{
-            .type = if (start == 0 or (start > 0 and self.source[start - 1] == '\n' or
-                (start > 1 and self.source[start - 1] == '\r')))
-                .key
-            else
-                .value,
+            .type = if (wasLineStart) .key else .value,
             .slice = self.source[start..self.pos],
             .line = startLine,
             .column = startCol,
@@ -239,7 +246,7 @@ test "Lexer quoted value" {
     const eq = lex.next();
     try std.testing.expectEqual(TokenType.equals, eq.type);
     const val = lex.next();
-    try std.testing.expectEqual(TokenType.quoted_value, val.type);
+    try std.testing.expectEqual(TokenType.quotedValue, val.type);
     try std.testing.expectEqualStrings("\"hello world\"", val.slice);
 }
 

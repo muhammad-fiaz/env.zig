@@ -54,16 +54,31 @@ pub fn main(init: std.process.Init) !void {
     try stdout.print("getEnum MODE = {any}\n", .{env.getEnum(Mode, "MODE")});
     try stdout.print("getEnum PORT as Mode = {any} (null expected)\n", .{env.getEnum(Mode, "PORT")});
 
-    // getList with delimiter and trimming
+    // getList returns owned strings: free each item, then the slice.
     if (env.getList(allocator, "HOSTS", ',')) |list| {
-        defer allocator.free(list);
+        defer {
+            for (list) |item| allocator.free(item);
+            allocator.free(list);
+        }
         try stdout.print("getList HOSTS count={d}\n", .{list.len});
         for (list, 0..) |h, i| try stdout.print("  [{d}] {s}\n", .{ i, h });
-        // Note: list elements borrow the stored value; free only the outer slice.
     }
 
-    // Empty list
-    try stdout.print("getList EMPTY = {any} (null or empty)\n", .{env.getList(allocator, "EMPTY", ',')});
+    // Empty list (null when missing or when no non-empty segments).
+    if (env.getList(allocator, "EMPTY", ',')) |emptyList| {
+        defer {
+            for (emptyList) |item| allocator.free(item);
+            allocator.free(emptyList);
+        }
+        try stdout.print("getList EMPTY count={d}\n", .{emptyList.len});
+    } else {
+        try stdout.print("getList EMPTY = null (empty)\n", .{});
+    }
+
+    // Generic typed API with defaults.
+    try stdout.print("getValue u16 PORT = {d}\n", .{env.getValue(u16, "PORT").?});
+    try stdout.print("getValueOrDefault u16 MISSING = {d}\n", .{env.getValueOrDefault(u16, "MISSING", 9999)});
+    try stdout.print("requireValue MODE = {any}\n", .{try env.requireValue(Mode, "MODE")});
 
     // Fallback default (checks Env, then OS).
     try stdout.print("getWithFallback MISSING -> {s}\n", .{env.getWithFallback("MISSING", "fallback")});

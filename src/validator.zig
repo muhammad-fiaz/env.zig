@@ -1,5 +1,4 @@
 const std = @import("std");
-const errors = @import("errors.zig");
 
 /// A validation level.
 pub const Level = enum {
@@ -8,6 +7,8 @@ pub const Level = enum {
 };
 
 /// A validation error or warning.
+/// `message` is borrowed (static or field description); only the outer
+/// slice from `Schema.validate` needs freeing.
 pub const ValidationError = struct {
     key: []const u8,
     message: []const u8,
@@ -18,7 +19,9 @@ pub const ValidationError = struct {
 /// or an error message on failure.
 pub const ValidatorFn = *const fn (value: []const u8) ?[]const u8;
 
-/// A set of built-in validators.
+/// Built-in validators. Guarantees are documented per validator; they use
+/// Zig standard-library parsing where applicable so they agree with the
+/// typed getters (`getInt`, `getFloat`, ...).
 pub const validators = struct {
     /// Value must not be empty.
     pub fn required(value: []const u8) ?[]const u8 {
@@ -26,60 +29,47 @@ pub const validators = struct {
         return null;
     }
 
-    /// Value must be a valid boolean (true/false/yes/no/1/0/on/off).
+    /// Value must be a valid boolean (true/false/yes/no/1/0/on/off,
+    /// case-insensitive, surrounding whitespace ignored).
     pub fn boolean(value: []const u8) ?[]const u8 {
-        if (value.len == 0) return "value must not be empty";
-        if (value.len > 8) return "value must be a valid boolean (true/false/yes/no/1/0/on/off)";
+        const v = std.mem.trim(u8, value, " \t\r\n");
+        if (v.len == 0) return "value must not be empty";
+        if (v.len > 8) return "value must be a valid boolean (true/false/yes/no/1/0/on/off)";
         var buf: [8]u8 = undefined;
-        for (value, 0..) |ch, i| {
+        for (v, 0..) |ch, i| {
             buf[i] = std.ascii.toLower(ch);
         }
-        const v = buf[0..value.len];
-        if (std.mem.eql(u8, v, "true") or std.mem.eql(u8, v, "false") or
-            std.mem.eql(u8, v, "yes") or std.mem.eql(u8, v, "no") or
-            std.mem.eql(u8, v, "1") or std.mem.eql(u8, v, "0") or
-            std.mem.eql(u8, v, "on") or std.mem.eql(u8, v, "off"))
+        const lower = buf[0..v.len];
+        if (std.mem.eql(u8, lower, "true") or std.mem.eql(u8, lower, "false") or
+            std.mem.eql(u8, lower, "yes") or std.mem.eql(u8, lower, "no") or
+            std.mem.eql(u8, lower, "1") or std.mem.eql(u8, lower, "0") or
+            std.mem.eql(u8, lower, "on") or std.mem.eql(u8, lower, "off"))
         {
             return null;
         }
         return "value must be a valid boolean (true/false/yes/no/1/0/on/off)";
     }
 
-    /// Value must be a valid integer.
+    /// Value must be a valid integer (optional `+`/`-`, digits only,
+    /// surrounding whitespace ignored). Uses the same syntax as `getInt`.
     pub fn integer(value: []const u8) ?[]const u8 {
-        if (value.len == 0) return "value must not be empty";
-        var start: usize = 0;
-        if (value[0] == '-' or value[0] == '+') {
-            if (value.len == 1) return "value must be a valid integer";
-            start = 1;
-        }
-        for (value[start..]) |ch| {
-            if (!std.ascii.isDigit(ch)) return "value must be a valid integer";
-        }
+        const v = std.mem.trim(u8, value, " \t\r\n");
+        if (v.len == 0) return "value must not be empty";
+        _ = std.fmt.parseInt(i64, v, 10) catch return "value must be a valid integer";
         return null;
     }
 
-    /// Value must be a valid float.
+    /// Value must be a valid float (agrees with `std.fmt.parseFloat`,
+    /// surrounding whitespace ignored). Accepts exponents, `inf`, `nan`.
     pub fn float(value: []const u8) ?[]const u8 {
-        if (value.len == 0) return "value must not be empty";
-        var start: usize = 0;
-        if (value[0] == '-' or value[0] == '+') {
-            if (value.len == 1) return "value must be a valid float";
-            start = 1;
-        }
-        var dotSeen = false;
-        for (value[start..]) |ch| {
-            if (ch == '.') {
-                if (dotSeen) return "value must be a valid float";
-                dotSeen = true;
-            } else if (!std.ascii.isDigit(ch)) {
-                return "value must be a valid float";
-            }
-        }
+        const v = std.mem.trim(u8, value, " \t\r\n");
+        if (v.len == 0) return "value must not be empty";
+        _ = std.fmt.parseFloat(f64, v) catch return "value must be a valid float";
         return null;
     }
 
-    /// Value must be a valid URL.
+    /// Basic URL check: must start with `http://` or `https://`.
+    /// Not a full URL parser.
     pub fn url(value: []const u8) ?[]const u8 {
         if (std.mem.startsWith(u8, value, "http://") or std.mem.startsWith(u8, value, "https://")) {
             return null;
@@ -87,16 +77,24 @@ pub const validators = struct {
         return "value must be a valid URL starting with http:// or https://";
     }
 
-    /// Value must be a valid email address.
+    /// Basic email check (not RFC-compliant): exactly one `@`, non-empty
+    /// local and domain parts, a `.` in the domain, no spaces.
     pub fn email(value: []const u8) ?[]const u8 {
-        if (std.mem.indexOf(u8, value, "@") == null) return "value must be a valid email address";
-        if (std.mem.lastIndexOf(u8, value, ".") == null) return "value must be a valid email address";
+        const v = std.mem.trim(u8, value, " \t\r\n");
+        if (v.len == 0 or std.mem.indexOfScalar(u8, v, ' ') != null) return "value must be a valid email address";
+        var parts = std.mem.splitScalar(u8, v, '@');
+        const local = parts.next() orelse return "value must be a valid email address";
+        const domain = parts.next() orelse return "value must be a valid email address";
+        if (parts.next() != null) return "value must be a valid email address";
+        if (local.len == 0 or domain.len == 0) return "value must be a valid email address";
+        if (std.mem.indexOfScalar(u8, domain, '.') == null) return "value must be a valid email address";
         return null;
     }
 
-    /// Value must be a valid IPv4 address.
+    /// Value must be a valid IPv4 address (four 0-255 decimal octets).
     pub fn ipv4(value: []const u8) ?[]const u8 {
-        var parts = std.mem.splitScalar(u8, value, '.');
+        const v = std.mem.trim(u8, value, " \t\r\n");
+        var parts = std.mem.splitScalar(u8, v, '.');
         var count: usize = 0;
         while (parts.next()) |part| {
             count += 1;
@@ -104,27 +102,38 @@ pub const validators = struct {
             for (part) |ch| {
                 if (!std.ascii.isDigit(ch)) return "value must be a valid IPv4 address";
             }
-            const num = std.fmt.parseInt(u8, part, 10) catch return "value must be a valid IPv4 address";
-            _ = num;
+            _ = std.fmt.parseInt(u8, part, 10) catch return "value must be a valid IPv4 address";
         }
         if (count != 4) return "value must be a valid IPv4 address";
         return null;
     }
 
-    /// Value must be a valid hostname.
+    /// Value must be a valid hostname: 1-253 chars, dot-separated labels of
+    /// 1-63 alphanumerics/hyphens, labels may not start or end with `-`.
     pub fn hostname(value: []const u8) ?[]const u8 {
-        if (value.len == 0 or value.len > 253) return "value must be a valid hostname";
-        if (value[0] == '-' or value[value.len - 1] == '-') return "hostname cannot start or end with a hyphen";
-        for (value) |ch| {
-            if (!std.ascii.isAlphanumeric(ch) and ch != '-' and ch != '.') return "hostname contains invalid characters";
+        const v = std.mem.trim(u8, value, " \t\r\n");
+        if (v.len == 0 or v.len > 253) return "value must be a valid hostname";
+        var labels = std.mem.splitScalar(u8, v, '.');
+        var labelCount: usize = 0;
+        while (labels.next()) |label| {
+            labelCount += 1;
+            if (label.len == 0 or label.len > 63) return "value must be a valid hostname";
+            if (!std.ascii.isAlphanumeric(label[0]) or !std.ascii.isAlphanumeric(label[label.len - 1])) {
+                return "hostname labels must start and end with an alphanumeric";
+            }
+            for (label) |ch| {
+                if (!std.ascii.isAlphanumeric(ch) and ch != '-') return "hostname contains invalid characters";
+            }
         }
+        if (labelCount == 0) return "value must be a valid hostname";
         return null;
     }
 
-    /// Value must be a valid port number (0-65535).
+    /// Value must be a valid port number (0-65535, no empty input).
     pub fn port(value: []const u8) ?[]const u8 {
-        const num = std.fmt.parseInt(u16, value, 10) catch return "value must be a valid port number (0-65535)";
-        _ = num;
+        const v = std.mem.trim(u8, value, " \t\r\n");
+        if (v.len == 0) return "value must not be empty";
+        _ = std.fmt.parseInt(u16, v, 10) catch return "value must be a valid port number (0-65535)";
         return null;
     }
 

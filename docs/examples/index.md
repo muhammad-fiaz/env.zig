@@ -20,7 +20,7 @@ Complete working examples for env.zig.
 ## Running Examples
 
 ```bash
-# Run all examples (11 total)
+# Run all examples (14 total)
 zig build example
 
 # Run a specific example
@@ -35,6 +35,9 @@ zig-out/bin/os_env_example
 zig-out/bin/file_io_example
 zig-out/bin/error_handling_example
 zig-out/bin/type_safe_example
+zig-out/bin/unicode_example
+zig-out/bin/runtime_example
+zig-out/bin/child_env_example
 ```
 
 ## Available Examples
@@ -44,11 +47,11 @@ zig-out/bin/type_safe_example
 | [Basic](/examples/basic) | Set/get values, type-safe accessors, iteration, serialization |
 | [Interpolation](/examples/interpolation) | Variable interpolation with `${VAR}` syntax |
 | [Clone & Merge](/examples/clone-merge) | Independent copies and default value merging |
-| [Cache](/examples/cache) | Built-in cache for parsed values |
-| [Iterator](/examples/iterator) | Iterator API with peek, skip, reset, and collect |
+| [Cache](/examples/cache) | Standalone cache for parsed values |
+| [Iterator](/examples/iterator) | Borrowed iterator with peek, skip, reset, and collect |
 | [Validation](/examples/validation) | Schema validation with built-in validators |
 | [Serialization](/examples/serialization) | Serialize to .env format with sorting and quoting |
-| [OS Environment](/examples/os-env) | Cross-platform OS env (Windows/Linux/macOS) with Scope & snapshot |
+| [OS Environment](/examples/os-env) | Cross-platform runtime env via `env.runtime` with Scope & snapshot |
 | [File I/O](/examples/file_io) | Load/save, loadMany, reload, prefix filtering, export |
 | [Error Handling](/examples/error_handling) | Strict mode, diagnostics, FileNotFound, validation levels |
-| [Type-Safe](/examples/type_safe) | getBool/getInt/getFloat/getEnum/getList with OS fallback |
+| [Type-Safe](/examples/type_safe) | getBool/getInt/getFloat/getEnum/getList/getValue with OS fallback |

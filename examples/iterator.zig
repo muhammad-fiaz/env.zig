@@ -30,7 +30,7 @@ pub fn main(init: std.process.Init) !void {
         try stdout.print("  {s} = {s}\n", .{ key, env.get(key).? });
     }
 
-    // Iterator API — allocates entries, release with deinit
+    // Iterator API — borrowed, no allocation; deinit is a no-op.
     try stdout.print("\nAll entries (via iterator):\n", .{});
     var it = env.iterator();
     defer it.deinit();

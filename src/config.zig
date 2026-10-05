@@ -1,37 +1,53 @@
 const std = @import("std");
 
 /// Configuration options for parsing and loading .env files.
+/// Every field is implemented; there are no dead switches.
 pub const Config = struct {
-    /// Whether to trim whitespace from keys and values.
+    /// Trim surrounding whitespace from unquoted keys and values.
+    /// Whitespace inside quoted values is always preserved.
     trim: bool = true,
-    /// Whether to allow empty values (KEY= or KEY="").
+    /// Allow empty values (`KEY=` or `KEY=""`). When false, empty values
+    /// are skipped in lenient mode and rejected in strict mode.
     allowEmpty: bool = true,
-    /// Whether to enable variable interpolation (KEY=${OTHER}).
+    /// Enable variable interpolation (`${OTHER}`, `$OTHER`, defaults, etc.).
     interpolate: bool = true,
-    /// Whether to override existing values when loading multiple files.
+    /// Override existing values when loading multiple files or entries.
+    /// When false, existing keys are kept.
     override: bool = true,
-    /// Whether to fail on syntax errors instead of skipping invalid lines.
+    /// Fail on syntax errors instead of skipping invalid lines.
+    /// Strict mode returns the specific `EnvError` for each diagnostic.
     strict: bool = false,
-    /// Whether to allow inline comments (# comment after value).
+    /// Strip ` # comment` suffixes from unquoted values.
+    /// When false, `#` is treated as a literal value character.
+    /// Quoted values never treat `#` as a comment.
     allowInlineComments: bool = true,
-    /// Whether to allow multiline values (backslash continuation).
+    /// Allow backslash-newline continuation: a trailing `\` joins the
+    /// next line into the current value. When false, a trailing `\`
+    /// is kept literally.
     allowMultiline: bool = false,
     /// Maximum interpolation recursion depth.
     maxInterpolationDepth: usize = 10,
-    /// Comment character.
+    /// Line-comment character. Only `#` is supported; any other value
+    /// is rejected by `validate`.
     commentChar: u8 = '#',
-    /// Whether to export loaded values to the process environment.
+    /// Automatically export `Env.set`/`Env.remove` mutations to the
+    /// process environment. Failures are returned to the caller.
     exportToEnv: bool = false,
-    /// Whether to preserve comments when serializing.
-    preserveComments: bool = false,
-    /// Whether to sort keys when serializing.
+    /// Sort keys when serializing.
     sortKeys: bool = false,
-    /// Indentation for serialized output (number of spaces).
-    indent: usize = 0,
-    /// Whether to add a trailing newline when writing.
+    /// Emit a trailing newline after the last entry when serializing.
+    /// When false, the final entry has no trailing `\n`.
     trailingNewline: bool = true,
-    /// Whether to quote values that contain spaces when writing.
+    /// Quote values that require quoting (spaces, `#`, quotes, etc.)
+    /// so that `parse(serialize(parse(x)))` preserves semantics.
     quoteSpaces: bool = true,
+
+    /// Validate the configuration. Returns `error.InvalidConfig` style
+    /// `error.InvalidValue` when `commentChar` is unsupported.
+    pub fn validate(self: Config) !void {
+        if (self.commentChar != '#') return error.InvalidValue;
+        if (self.maxInterpolationDepth == 0) return error.InvalidValue;
+    }
 
     /// Builder-style configuration.
     pub fn with(self: Config, overrides: anytype) Config {

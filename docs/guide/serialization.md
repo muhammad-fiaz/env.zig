@@ -35,11 +35,9 @@ try env.save("output.env");
 
 | Config Option | Default | Description |
 |---------------|---------|-------------|
-| `sortKeys` | `false` | Sort keys alphabetically |
-| `quoteSpaces` | `true` | Quote values containing spaces |
-| `trailingNewline` | `true` | Add a trailing newline |
-| `preserveComments` | `false` | Preserve original comments |
-| `indent` | `0` | Indentation spaces |
+| `sortKeys` | `false` | Sort keys alphabetically (input slice is not mutated) |
+| `quoteSpaces` | `true` | Quote values needing quotes for a lossless `parse(serialize(x))` round-trip |
+| `trailingNewline` | `true` | Emit trailing `\n` after the last entry; `false` omits it |
 
 ## Sorted Keys
 

@@ -13,9 +13,12 @@ head:
       content: "zig, env, OsEnv, Scope, Snapshot, getenv, GetEnvironmentVariableW, windows, linux, macos"
 ---
 
-# OsEnv API Reference
+# OsEnv / runtime API Reference
 
-Native OS environment bridge. Uses `std.c.getenv` / `setenv`/`unsetenv` on POSIX and `GetEnvironmentVariableW`/`SetEnvironmentVariableW`/`GetEnvironmentStringsW` (with `SetLastError(0)` and WTF-16LE ↔ WTF-8) on Windows. Reuses `std.process.Environ` semantics (case-insensitive on Windows).
+Reads reuse Zig 0.17.0 `std.process.Environ` (`createMap`, PEB-locked on
+Windows). Only `set`/`unset` use minimal custom OS bindings because the
+standard library exposes no mutation API. Prefer `env.runtime.*` for
+process env; `OsEnv` remains as an alias.
 
 ## `OsEnv`
 
@@ -25,7 +28,10 @@ Native OS environment bridge. Uses `std.c.getenv` / `setenv`/`unsetenv` on POSIX
 pub fn get(key: []const u8) ?[]const u8
 ```
 
-POSIX `getenv` or Windows `GetEnvironmentVariableW` (thread-local TLS buffer, valid until next `get`). Case-insensitive on Windows.
+POSIX `getenv` or Windows `GetEnvironmentVariableW` (thread-local owned
+buffer resized per call, valid until the next `get` on the same thread;
+dupe to retain). Distinguishes missing (`null`) from empty (`""`).
+Case-insensitive on Windows.
 
 ### `getAlloc`
 
@@ -46,9 +52,12 @@ pub fn isEmpty(key: []const u8) bool
 ### `set` / `unset`
 
 ```zig
-pub fn set(key: []const u8, value: []const u8) !void // error.InvalidKey / SetEnvFailed
+pub fn set(key: []const u8, value: []const u8) !void // error.InvalidKey/InvalidValue/IoError
 pub fn unset(key: []const u8) !void
 ```
+
+Keys use `std.process.Environ.Map.validateKeyForPut` (non-empty, no `=`,
+no NUL, valid WTF-8 on Windows). Values reject NUL.
 
 ### `getMap` / `getAllAlloc`
 
@@ -57,7 +66,8 @@ pub fn getMap(allocator: std.mem.Allocator) !std.process.Environ.Map // via std.
 pub fn getAllAlloc(allocator: std.mem.Allocator) !std.StringHashMap([]const u8) // caller frees keys/values
 ```
 
-`getAllAlloc` on Windows parses `GetEnvironmentStringsW` block (PEB), handling `=C:` drive prefixes; on POSIX iterates `std.c.environ`.
+`getAllAlloc` reuses `getMap` (`Environ.createMap`) then dupes into a
+`StringHashMap`; no manual PEB/`environ` parsing remains.
 
 ### `snapshot`
 
@@ -93,6 +103,9 @@ pub const Scope = struct {
 
 ## Env integration
 
-Re-exported as `env.Mod.OsEnv` / `Scope` / `Snapshot`, plus `Env` helpers: `loadOsEnv`, `loadOsEnvIfMissing`, `loadOsEnvWithPrefix`, `exportToOsEnv`, `getOs`, `containsOs`, `getWithFallback`, `require`, `toEnvironMap`, `EnvScope`.
+Re-exported as `env.runtime` (preferred) and `env.OsEnv` / `Scope` /
+`Snapshot`, plus `Env` helpers: `loadOsEnv`, `loadOsEnvIfMissing`,
+`loadOsEnvWithPrefix`, `exportToOsEnv`, `getOs`, `getOsAlloc`,
+`containsOs`, `getWithFallback`, `requireOs`, `toEnvironMap`, `EnvScope`.
 
 See [OS Environment Guide](/guide/os-env) for examples and Windows notes (empty `FOO=` deletes on OS, preserved in `Env`).

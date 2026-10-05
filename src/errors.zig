@@ -2,40 +2,34 @@ const std = @import("std");
 
 /// The kind of error that occurred during env operations.
 pub const ErrorKind = enum {
-    /// The file could not be read.
-    file_not_found,
+    /// The file could not be found.
+    fileNotFound,
     /// The file could not be read due to permissions.
-    permission_denied,
+    permissionDenied,
     /// A syntax error was encountered during parsing.
-    parse_error,
+    parseError,
     /// An invalid key was encountered.
-    invalid_key,
+    invalidKey,
     /// An invalid value was encountered.
-    invalid_value,
-    /// An unquoted string contains whitespace.
-    unquoted_whitespace,
+    invalidValue,
+    /// An unquoted value contains whitespace (strict mode only).
+    unquotedWhitespace,
     /// A quote was not closed.
-    unterminated_quote,
+    unterminatedQuote,
     /// An escape sequence is invalid.
-    invalid_escape,
+    invalidEscape,
     /// Interpolation has a circular dependency.
-    circular_dependency,
+    circularDependency,
     /// Maximum interpolation depth exceeded.
-    max_depth_exceeded,
+    maxDepthExceeded,
     /// A required key is missing.
-    missing_required,
-    /// A value failed validation.
-    validation_failed,
+    missingRequired,
     /// The value could not be converted to the requested type.
-    type_mismatch,
+    typeMismatch,
     /// An I/O error occurred.
-    io_error,
+    ioError,
     /// An allocation failed.
-    out_of_memory,
-    /// The operation is not supported.
-    not_supported,
-    /// Invalid configuration.
-    invalid_config,
+    outOfMemory,
 };
 
 /// A diagnostic error with rich context for env operations.
@@ -94,6 +88,7 @@ pub const Diagnostic = struct {
 };
 
 /// Error union type used throughout the library.
+/// Only errors that can actually be returned are listed.
 pub const EnvError = error{
     FileNotFound,
     PermissionDenied,
@@ -106,40 +101,34 @@ pub const EnvError = error{
     CircularDependency,
     MaxDepthExceeded,
     MissingRequired,
-    ValidationFailed,
     TypeMismatch,
     IoError,
     OutOfMemory,
-    NotSupported,
-    InvalidConfig,
 };
 
 /// Convert a Diagnostic to an EnvError.
 pub fn diagnosticToError(diag: Diagnostic) EnvError {
     return switch (diag.kind) {
-        .file_not_found => error.FileNotFound,
-        .permission_denied => error.PermissionDenied,
-        .parse_error => error.ParseError,
-        .invalid_key => error.InvalidKey,
-        .invalid_value => error.InvalidValue,
-        .unquoted_whitespace => error.UnquotedWhitespace,
-        .unterminated_quote => error.UnterminatedQuote,
-        .invalid_escape => error.InvalidEscape,
-        .circular_dependency => error.CircularDependency,
-        .max_depth_exceeded => error.MaxDepthExceeded,
-        .missing_required => error.MissingRequired,
-        .validation_failed => error.ValidationFailed,
-        .type_mismatch => error.TypeMismatch,
-        .io_error => error.IoError,
-        .out_of_memory => error.OutOfMemory,
-        .not_supported => error.NotSupported,
-        .invalid_config => error.InvalidConfig,
+        .fileNotFound => error.FileNotFound,
+        .permissionDenied => error.PermissionDenied,
+        .parseError => error.ParseError,
+        .invalidKey => error.InvalidKey,
+        .invalidValue => error.InvalidValue,
+        .unquotedWhitespace => error.UnquotedWhitespace,
+        .unterminatedQuote => error.UnterminatedQuote,
+        .invalidEscape => error.InvalidEscape,
+        .circularDependency => error.CircularDependency,
+        .maxDepthExceeded => error.MaxDepthExceeded,
+        .missingRequired => error.MissingRequired,
+        .typeMismatch => error.TypeMismatch,
+        .ioError => error.IoError,
+        .outOfMemory => error.OutOfMemory,
     };
 }
 
 test "Diagnostic format" {
     const diag = Diagnostic{
-        .kind = .parse_error,
+        .kind = .parseError,
         .file = ".env",
         .line = 5,
         .column = 12,
@@ -148,11 +137,11 @@ test "Diagnostic format" {
     var buf: [256]u8 = undefined;
     const result = std.fmt.bufPrint(&buf, "{}", .{diag}) catch return;
     try std.testing.expect(result.len > 0);
-    try std.testing.expect(std.mem.indexOf(u8, result, "parse_error") != null);
+    try std.testing.expect(std.mem.indexOf(u8, result, "parseError") != null);
 }
 
 test "diagnosticToError" {
-    const diag = Diagnostic{ .kind = .file_not_found };
+    const diag = Diagnostic{ .kind = .fileNotFound };
     const err = diagnosticToError(diag);
     try std.testing.expectEqual(error.FileNotFound, err);
 }

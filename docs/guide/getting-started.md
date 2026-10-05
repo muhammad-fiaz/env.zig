@@ -74,15 +74,15 @@ pub fn main(init: std.process.Init) !void {
         std.debug.print("HOST exists\n", .{});
     }
 
-    // Delete entries
-    _ = env.remove("DEBUG");
+    // Delete entries (!bool; export failures are returned)
+    _ = try env.remove("DEBUG");
 
-    // OS bridging (Windows/Linux/macOS via std.c / kernel32)
+    // OS bridging (Windows/Linux/macOS via std.process.Environ + minimal set/unset)
     try env.loadOsEnvIfMissing(); // import OS vars only if missing
     try env.loadOsEnvWithPrefix("APP_"); // APP_PORT=8080 → PORT=8080
     try env.exportToOsEnv(); // push to process env for children
     const withDefault = env.getWithFallback("PORT", "3000");
-    const required = try env.require("DATABASE_URL");
+    const required = try env.requireOs("DATABASE_URL");
 
     // Temporary $env isolation for tests
     {
@@ -220,31 +220,32 @@ var env = envMod.Env.init(allocator, .{
 ## Reading Values
 
 ```zig
-// Raw string (Env only)
+// Raw string (Env only, borrowed)
 const value = env.get("KEY");
 
-// OS-aware (Env → OS fallback via OsEnv.get / getenv / GetEnvironmentVariableW)
+// OS-aware (Env → runtime fallback)
 const value2 = env.getOs("KEY"); // ?[]const u8
 const withDefault = env.getWithFallback("PORT", "3000");
-const required = try env.require("API_KEY"); // error.MissingRequired
+const required = try env.requireOs("API_KEY"); // error.MissingRequired
 const is_os = env.containsOs("HOME");
 
-// Typed accessors
+// Typed accessors (missing -> null; invalid -> null; tryGet* -> TypeMismatch)
 const port = env.getInt(u16, "PORT");       // ?u16
 const debug = env.getBool("DEBUG");         // ?bool
 const ratio = env.getFloat(f64, "RATIO");   // ?f64
 const mode = env.getEnum(Mode, "MODE");     // ?Mode
+const generic = env.getValue(u16, "PORT");  // ?u16
 
-// List (split by delimiter)
+// List (owned items + slice; free each item, then the slice)
 const hosts = env.getList(allocator, "HOSTS", ','); // ?[][]const u8
 
-// Check existence
+// Check existence (missing vs empty are distinct)
 if (env.contains("KEY")) { ... }
 if (env.containsOs("KEY")) { ... }
 
-// Direct OS (cross-platform)
-const home = envMod.OsEnv.get("HOME"); // thread-local TLS on Windows
-const homeAlloc = try envMod.OsEnv.getAlloc(allocator, "HOME");
+// Direct runtime (preferred namespace; borrowed on Windows until next get)
+const home = envMod.runtime.get("HOME");
+const homeAlloc = try envMod.runtime.getAlloc(allocator, "HOME");
 ```
 
 ## Writing & Updating Values
@@ -263,8 +264,8 @@ try env.merge(&defaults);
 ## Deleting Values
 
 ```zig
-// Remove single key (returns true if existed)
-if (env.remove("DEBUG")) {
+// Remove single key (!bool; export failures are returned, never swallowed)
+if (try env.remove("DEBUG")) {
     std.debug.print("Removed DEBUG\n", .{});
 }
 
@@ -284,7 +285,7 @@ for (keys) |key| {
 // Get entry count
 const count = env.count();
 
-// Use iterator
+// Use iterator (borrowed, no allocation; deinit is a no-op)
 var it = env.iterator();
 while (it.next()) |entry| {
     std.debug.print("{s}={s}\n", .{ entry.key, entry.value });
@@ -293,24 +294,27 @@ while (it.next()) |entry| {
 
 ## Cache
 
-Store values separately from environment entries:
+Standalone `Cache` for values separate from `Env` entries (`Env` owns no cache):
 
 ```zig
+var cache = envMod.Cache.init(allocator);
+defer cache.deinit();
+
 // Put values into cache
-try env.cache.put("token", "abc123");
-try env.cache.put("config", "{ \"timeout\": 30 }");
+try cache.put("token", "abc123");
+try cache.put("config", "{ \"timeout\": 30 }");
 
 // Get from cache
-if (env.cache.get("token")) |token| {
+if (cache.get("token")) |token| {
     std.debug.print("Token: {s}\n", .{token});
 }
 
 // Check existence
-if (env.cache.contains("token")) { ... }
+if (cache.contains("token")) { ... }
 
 // Remove & clear
-_ = env.cache.remove("token");
-env.cache.clear();
+_ = cache.remove("token");
+cache.clear();
 ```
 
 ## Serialization

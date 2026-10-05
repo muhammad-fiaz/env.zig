@@ -54,11 +54,19 @@ pub const ParseResult = struct {
 };
 
 /// Parse a .env file content string into key-value entries.
+///
+/// Supported syntax:
+/// `KEY=value`, `KEY=` (empty), `KEY=""`, `KEY='v'`, ``KEY=`v` ``,
+/// `export KEY=value`, full-line comments, inline ` # comment` suffixes
+/// (when `allowInlineComments`), backslash-newline continuation (when
+/// `allowMultiline`), CRLF/LF, quoted escapes, `=` inside values and
+/// Unicode values. Comment characters inside quotes are literal.
 pub fn parse(
     allocator: std.mem.Allocator,
     source: []const u8,
     options: ParseOptions,
-) (std.mem.Allocator.Error || error{ParseError})!ParseResult {
+) (std.mem.Allocator.Error || errors.EnvError)!ParseResult {
+    try options.config.validate();
     var result = ParseResult{
         .entries = .empty,
         .errorsList = .empty,
@@ -80,7 +88,7 @@ pub fn parse(
     var lexer = Lexer.init(source, options.config);
 
     while (true) {
-        var tok = lexer.next();
+        const tok = lexer.next();
         switch (tok.type) {
             .eof => break,
             .newline => continue,
@@ -89,144 +97,107 @@ pub fn parse(
             .key => {
                 var keyText = tok.slice;
                 var keyLine = tok.line;
-                // Handle `export KEY=value` prefix (shell compatibility).
+                var keyCol = tok.column;
                 if (std.mem.eql(u8, keyText, "export")) {
                     var nxt = lexer.next();
                     while (nxt.type == .whitespace) nxt = lexer.next();
                     if (nxt.type != .key) {
                         if (nxt.type == .eof or nxt.type == .newline or nxt.type == .comment) continue;
-                        try addDiagnostic(allocator, &result, .{
-                            .kind = .parse_error,
+                        const diag = Diagnostic{
+                            .kind = .parseError,
                             .file = options.filePath,
                             .line = nxt.line,
                             .column = nxt.column,
                             .explanation = "expected key after 'export'",
-                        });
-                        if (options.config.strict) return error.ParseError;
+                        };
+                        try addDiagnostic(allocator, &result, diag);
+                        if (options.config.strict) return errors.diagnosticToError(diag);
                         skipToNewline(&lexer);
                         continue;
                     }
                     keyText = nxt.slice;
                     keyLine = nxt.line;
-                    tok = nxt;
+                    keyCol = nxt.column;
                 }
 
-                if (!helpers.isValidKey(keyText)) {
-                    try addDiagnostic(allocator, &result, .{
-                        .kind = .invalid_key,
+                if (std.mem.indexOfScalar(u8, keyText, 0) != null or !helpers.isValidKey(keyText)) {
+                    const diag = Diagnostic{
+                        .kind = .invalidKey,
                         .file = options.filePath,
-                        .line = tok.line,
-                        .column = tok.column,
+                        .line = keyLine,
+                        .column = keyCol,
                         .token = keyText,
                         .explanation = "invalid key name",
                         .suggestion = "keys must start with a letter or underscore and contain only alphanumeric characters and underscores",
-                    });
-                    if (options.config.strict) return error.ParseError;
+                    };
+                    try addDiagnostic(allocator, &result, diag);
+                    if (options.config.strict) return errors.diagnosticToError(diag);
                     skipToNewline(&lexer);
                     continue;
                 }
 
                 var eq = lexer.next();
-                if (eq.type == .whitespace) {
-                    eq = lexer.next();
-                }
+                if (eq.type == .whitespace) eq = lexer.next();
 
                 if (eq.type != .equals) {
-                    try addDiagnostic(allocator, &result, .{
-                        .kind = .parse_error,
+                    const diag = Diagnostic{
+                        .kind = .parseError,
                         .file = options.filePath,
                         .line = eq.line,
                         .column = eq.column,
                         .explanation = "expected '=' after key",
-                    });
-                    if (options.config.strict) return error.ParseError;
+                    };
+                    try addDiagnostic(allocator, &result, diag);
+                    if (options.config.strict) return errors.diagnosticToError(diag);
                     skipToNewline(&lexer);
                     continue;
                 }
 
-                const valTok = lexer.next();
-                var value: []const u8 = switch (valTok.type) {
-                    .value => valTok.slice,
-                    .quoted_value => try helpers.unescape(allocator, removeQuotes(valTok.slice, '"')),
-                    .single_quoted_value => removeQuotes(valTok.slice, '\''),
-                    .backtick_quoted_value => removeQuotes(valTok.slice, '`'),
-                    .interpolation => blk: {
-                        // Interpolation may be followed by more text (e.g. ${GREETING} world).
-                        var fullValue: std.ArrayList(u8) = .empty;
-                        errdefer fullValue.deinit(allocator);
-                        try fullValue.appendSlice(allocator, valTok.slice);
-                        while (true) {
-                            const next = lexer.next();
-                            switch (next.type) {
-                                .value => try fullValue.appendSlice(allocator, next.slice),
-                                .whitespace => try fullValue.appendSlice(allocator, next.slice),
-                                .interpolation => try fullValue.appendSlice(allocator, next.slice),
-                                .newline, .eof => break,
-                                else => break,
-                            }
-                        }
-                        break :blk try fullValue.toOwnedSlice(allocator);
-                    },
-                    .newline, .eof => "",
-                    .comment => "",
-                    else => {
-                        try addDiagnostic(allocator, &result, .{
-                            .kind = .invalid_value,
-                            .file = options.filePath,
-                            .line = valTok.line,
-                            .column = valTok.column,
-                            .token = valTok.slice,
-                            .explanation = "unexpected token after '='",
-                        });
-                        if (options.config.strict) return error.ParseError;
-                        skipToNewline(&lexer);
-                        continue;
-                    },
-                };
+                const collected = try collectValue(allocator, &lexer, options, &result);
+                var value: []const u8 = collected;
 
                 if (options.config.trim) {
                     value = std.mem.trim(u8, value, " \t\r\n");
                 }
 
+                if (std.mem.indexOfScalar(u8, value, 0) != null) {
+                    const diag = Diagnostic{
+                        .kind = .invalidValue,
+                        .file = options.filePath,
+                        .line = keyLine,
+                        .explanation = "value contains embedded NUL byte",
+                    };
+                    try addDiagnostic(allocator, &result, diag);
+                    allocator.free(collected);
+                    if (options.config.strict) return errors.diagnosticToError(diag);
+                    continue;
+                }
+
                 if (value.len == 0 and !options.config.allowEmpty) {
-                    try addDiagnostic(allocator, &result, .{
-                        .kind = .invalid_value,
+                    const diag = Diagnostic{
+                        .kind = .invalidValue,
                         .file = options.filePath,
                         .line = keyLine,
                         .explanation = "empty value not allowed",
                         .suggestion = "set a value or use allowEmpty = true",
-                    });
-                    if (options.config.strict) return error.ParseError;
-                    // Value already consumed (newline/eof), no need to skip.
-                    // Free allocated value if needed
-                    if (valTok.type == .interpolation or valTok.type == .quoted_value) {
-                        allocator.free(value);
-                    }
+                    };
+                    try addDiagnostic(allocator, &result, diag);
+                    allocator.free(collected);
+                    if (options.config.strict) return errors.diagnosticToError(diag);
                     continue;
                 }
 
-                const entry = Entry{
-                    .key = try allocator.dupe(u8, keyText),
-                    .value = try allocator.dupe(u8, value),
-                    .line = keyLine,
+                const ownedValue: []const u8 = if (value.len == collected.len)
+                    collected
+                else blk: {
+                    const duped = try allocator.dupe(u8, value);
+                    allocator.free(collected);
+                    break :blk duped;
                 };
-
-                // Free allocated value if it was allocated (not a source slice).
-                if (valTok.type == .interpolation or valTok.type == .quoted_value) {
-                    allocator.free(value);
-                }
-
-                try result.entries.append(allocator, entry);
-
-                // Advance to the next line, unless the value token already
-                // consumed the line terminator (interpolation consumes until
-                // newline/eof; newline/eof values are already terminated).
-                // Without this guard, an empty `KEY=` line would swallow the
-                // following entry.
-                switch (valTok.type) {
-                    .interpolation, .newline, .eof => {},
-                    else => skipToNewline(&lexer),
-                }
+                errdefer allocator.free(ownedValue);
+                const ownedKey = try allocator.dupe(u8, keyText);
+                errdefer allocator.free(ownedValue);
+                try result.entries.append(allocator, .{ .key = ownedKey, .value = ownedValue, .line = keyLine });
             },
             else => {
                 skipToNewline(&lexer);
@@ -235,6 +206,118 @@ pub fn parse(
     }
 
     return result;
+}
+
+/// Collect a value after `=` up to end of line.
+/// Returns an owned slice. Records diagnostics into `result`; in strict
+/// mode returns the specific `EnvError` for unterminated quotes.
+fn collectValue(
+    allocator: std.mem.Allocator,
+    lexer: *Lexer,
+    options: ParseOptions,
+    result: *ParseResult,
+) (std.mem.Allocator.Error || errors.EnvError)![]const u8 {
+    var buf: std.ArrayList(u8) = .empty;
+    errdefer buf.deinit(allocator);
+
+    while (true) {
+        const t = lexer.next();
+        switch (t.type) {
+            .eof, .newline => {
+                if (t.type == .newline and options.config.allowMultiline and buf.items.len > 0 and buf.items[buf.items.len - 1] == '\\') {
+                    // Backslash continuation: drop `\` + newline, join next line.
+                    _ = buf.pop();
+                    while (true) {
+                        const peek = lexer.peek();
+                        if (peek.type == .whitespace) {
+                            _ = lexer.next();
+                        } else break;
+                    }
+                    continue;
+                }
+                break;
+            },
+            .comment => {
+                if (options.config.allowInlineComments) {
+                    break;
+                } else {
+                    try buf.appendSlice(allocator, t.slice);
+                }
+            },
+            .value, .whitespace, .interpolation, .equals => {
+                try buf.appendSlice(allocator, t.slice);
+            },
+            .quotedValue => {
+                if (!isClosedQuote(t.slice, '"')) {
+                    const diag = Diagnostic{
+                        .kind = .unterminatedQuote,
+                        .file = options.filePath,
+                        .line = t.line,
+                        .column = t.column,
+                        .token = t.slice,
+                        .explanation = "unterminated double quote",
+                        .suggestion = "close the quote with \"",
+                    };
+                    try addDiagnostic(allocator, result, diag);
+                    if (options.config.strict) {
+                        buf.deinit(allocator);
+                        return errors.diagnosticToError(diag);
+                    }
+                    const inner = stripOpenQuote(t.slice);
+                    const un = try helpers.unescape(allocator, inner);
+                    defer allocator.free(un);
+                    try buf.appendSlice(allocator, un);
+                } else {
+                    const un = try helpers.unescape(allocator, removeQuotes(t.slice, '"'));
+                    defer allocator.free(un);
+                    try buf.appendSlice(allocator, un);
+                }
+            },
+            .singleQuotedValue => {
+                if (!isClosedQuote(t.slice, '\'')) {
+                    const diag = Diagnostic{
+                        .kind = .unterminatedQuote,
+                        .file = options.filePath,
+                        .line = t.line,
+                        .column = t.column,
+                        .token = t.slice,
+                        .explanation = "unterminated single quote",
+                        .suggestion = "close the quote with '",
+                    };
+                    try addDiagnostic(allocator, result, diag);
+                    if (options.config.strict) {
+                        buf.deinit(allocator);
+                        return errors.diagnosticToError(diag);
+                    }
+                }
+                try buf.appendSlice(allocator, removeQuotesAllowUnterminated(t.slice, '\''));
+            },
+            .backtickQuotedValue => {
+                if (!isClosedQuote(t.slice, '`')) {
+                    const diag = Diagnostic{
+                        .kind = .unterminatedQuote,
+                        .file = options.filePath,
+                        .line = t.line,
+                        .column = t.column,
+                        .token = t.slice,
+                        .explanation = "unterminated backtick quote",
+                        .suggestion = "close the quote with `",
+                    };
+                    try addDiagnostic(allocator, result, diag);
+                    if (options.config.strict) {
+                        buf.deinit(allocator);
+                        return errors.diagnosticToError(diag);
+                    }
+                }
+                try buf.appendSlice(allocator, removeQuotesAllowUnterminated(t.slice, '`'));
+            },
+            .key => {
+                try buf.appendSlice(allocator, t.slice);
+            },
+            else => break,
+        }
+    }
+    return try buf.toOwnedSlice(allocator);
 }
 
 fn addDiagnostic(
@@ -255,6 +338,25 @@ fn removeQuotes(slice: []const u8, quote: u8) []const u8 {
         return slice[1 .. slice.len - 1];
     }
     return slice;
+}
+
+fn isClosedQuote(slice: []const u8, quote: u8) bool {
+    return slice.len >= 2 and slice[0] == quote and slice[slice.len - 1] == quote;
+}
+
+fn stripOpenQuote(slice: []const u8) []const u8 {
+    if (slice.len >= 1 and (slice[0] == '"' or slice[0] == '\'' or slice[0] == '`')) {
+        return slice[1..];
+    }
+    return slice;
+}
+
+fn removeQuotesAllowUnterminated(slice: []const u8, quote: u8) []const u8 {
+    if (slice.len == 0) return slice;
+    const start: usize = if (slice[0] == quote) @as(usize, 1) else 0;
+    const end: usize = if (slice.len >= 2 and slice[slice.len - 1] == quote) slice.len - 1 else slice.len;
+    if (start >= end) return "";
+    return slice[start..end];
 }
 
 fn skipToNewline(lexer: *Lexer) void {
@@ -305,7 +407,7 @@ test "parse strict mode rejects invalid key" {
     const result = parse(std.testing.allocator, "123BAD=value\n", .{
         .config = .{ .strict = true },
     });
-    try std.testing.expectError(error.ParseError, result);
+    try std.testing.expectError(error.InvalidKey, result);
 }
 
 test "parse double-quoted value with escape sequences" {
@@ -360,12 +462,12 @@ test "parse empty value does not swallow next entry" {
     try std.testing.expectEqualStrings("value", result.entries.items[1].value);
 }
 
-test "parse value with spaces" {
+test "parse value with spaces preserves unquoted trailing words" {
     var result = try parse(std.testing.allocator, "KEY=hello world\n", .{});
     defer result.deinit(std.testing.allocator);
 
     try std.testing.expectEqual(@as(usize, 1), result.entries.items.len);
-    try std.testing.expectEqualStrings("hello", result.entries.items[0].value);
+    try std.testing.expectEqualStrings("hello world", result.entries.items[0].value);
 }
 
 test "parse double-quoted value with spaces" {

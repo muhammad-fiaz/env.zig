@@ -5,26 +5,40 @@ const nativeOs = builtin.os.tag;
 const unicode = std.unicode;
 const windows = std.os.windows;
 
-// C and Windows bindings.
+// Only the process-environment mutation syscalls are custom: Zig 0.17.0
+// exposes reads via `std.process.Environ` but no `set`/`unset`.
+// Reads reuse `std.process.Environ` wherever possible (see `getMap` and
+// `getAllAlloc`). Mutation below is the minimal isolated platform layer.
 extern "c" fn setenv(name: [*:0]const u8, value: [*:0]const u8, overwrite: c_int) c_int;
 extern "c" fn unsetenv(name: [*:0]const u8) c_int;
 
 extern "kernel32" fn GetEnvironmentVariableW(lpName: [*:0]const u16, lpBuffer: ?[*]u16, nSize: u32) callconv(.winapi) u32;
 extern "kernel32" fn SetEnvironmentVariableW(lpName: [*:0]const u16, lpValue: ?[*:0]const u16) callconv(.winapi) c_int;
-extern "kernel32" fn GetEnvironmentStringsW() callconv(.winapi) ?[*:0]u16;
-extern "kernel32" fn FreeEnvironmentStringsW(penv: [*:0]u16) callconv(.winapi) c_int;
 extern "kernel32" fn SetLastError(dwErrCode: u32) callconv(.winapi) void;
 
 /// Cross-platform OS environment access.
-/// Wraps POSIX `getenv`/`setenv`/`unsetenv` and Windows
-/// `GetEnvironmentVariableW`/`SetEnvironmentVariableW`.
-/// All functions work on Linux, macOS and Windows.
+///
+/// Reads reuse Zig 0.17.0 `std.process.Environ`; only `set`/`unset`
+/// require custom OS bindings because the standard library exposes no
+/// mutation API.
+///
+/// Semantics:
+/// - Missing (`null`) is distinct from present-with-empty (`""`).
+/// - On Windows lookups are case-insensitive; on POSIX case-sensitive.
+/// - Mutation is process-global and thread-unsafe by OS design.
+/// - `get` returns borrowed memory (see docs); use `getAlloc` to own.
 pub const OsEnv = struct {
-    /// Get an OS environment variable. Returns null if not set.
-    /// The returned slice is owned by the OS; to keep it, dupe it.
-    /// On Windows the lookup is case-insensitive; on POSIX it is case-sensitive.
+    /// Get an OS environment variable. Returns null when missing.
+    /// Distinguishes missing (`null`) from empty (`""`).
+    ///
+    /// Borrowed lifetime:
+    /// - POSIX: owned by the OS (`getenv`); valid until the next
+    ///   `set`/`unset` of the same key.
+    /// - Windows: thread-local buffer, valid until the next `get` on the
+    ///   same thread. Duplicate immediately to retain.
+    /// On Windows the lookup is case-insensitive; on POSIX case-sensitive.
     pub fn get(key: []const u8) ?[]const u8 {
-        if (key.len == 0) return null;
+        if (!isValidKeySilent(key)) return null;
         if (nativeOs == .windows) {
             return getWindows(key);
         } else {
@@ -33,30 +47,40 @@ pub const OsEnv = struct {
     }
 
     /// Get an OS env var and duplicate it with `allocator`.
-    /// Caller owns returned memory. Returns null if missing.
+    /// Caller owns returned memory. Returns null when missing.
     pub fn getAlloc(allocator: std.mem.Allocator, key: []const u8) !?[]u8 {
         const val = get(key) orelse return null;
         return try allocator.dupe(u8, val);
     }
 
-    /// Get OS env var with fallback default.
+    /// Get OS env var with fallback default (borrowed).
     pub fn getOrDefault(key: []const u8, defaultValue: []const u8) []const u8 {
         return get(key) orelse defaultValue;
     }
 
+    /// True when the key exists, even when its value is empty.
     pub fn exists(key: []const u8) bool {
         return get(key) != null;
     }
 
+    /// Alias for `exists`.
+    pub fn contains(key: []const u8) bool {
+        return exists(key);
+    }
+
+    /// True when missing or present-with-empty.
     pub fn isEmpty(key: []const u8) bool {
         const v = get(key) orelse return true;
         return v.len == 0;
     }
 
-    /// Set an OS environment variable. Overwrites if existing.
-    /// Works on all platforms.
+    /// Set an OS environment variable, overwriting when present.
+    /// Rejects empty keys, keys containing `=` or NUL, and values
+    /// containing NUL with `error.InvalidKey` / `error.InvalidValue`.
+    /// OS failures map to `error.IoError`.
     pub fn set(key: []const u8, value: []const u8) !void {
         try validateKey(key);
+        if (std.mem.indexOfScalar(u8, value, 0) != null) return error.InvalidValue;
         if (nativeOs == .windows) {
             try setWindows(key, value);
         } else {
@@ -64,7 +88,7 @@ pub const OsEnv = struct {
         }
     }
 
-    /// Unset / remove an OS environment variable.
+    /// Unset / remove an OS environment variable. No-op when missing.
     pub fn unset(key: []const u8) !void {
         try validateKey(key);
         if (nativeOs == .windows) {
@@ -75,6 +99,7 @@ pub const OsEnv = struct {
     }
 
     /// Return all OS environment variables as an `std.process.Environ.Map`.
+    /// Reuses Zig 0.17.0 `Environ.createMap` (PEB-locked on Windows).
     /// Caller must call `map.deinit()`.
     pub fn getMap(allocator: std.mem.Allocator) !std.process.Environ.Map {
         if (nativeOs == .windows) {
@@ -87,8 +112,11 @@ pub const OsEnv = struct {
     }
 
     /// Load all OS env vars into a `std.StringHashMap`.
-    /// Caller owns keys and values and must free them.
+    /// Reuses `getMap` (stdlib parsing) then dupes into the map shape
+    /// used by `Env` import paths. Caller owns keys and values.
     pub fn getAllAlloc(allocator: std.mem.Allocator) !std.StringHashMap([]const u8) {
+        var map = try getMap(allocator);
+        defer map.deinit();
         var out = std.StringHashMap([]const u8).init(allocator);
         errdefer {
             var it = out.iterator();
@@ -98,48 +126,13 @@ pub const OsEnv = struct {
             }
             out.deinit();
         }
-        if (nativeOs == .windows) {
-            const block = GetEnvironmentStringsW() orelse return out;
-            defer _ = FreeEnvironmentStringsW(block);
-            var ptr: usize = 0;
-            while (block[ptr] != 0) {
-                const start = ptr;
-                while (block[ptr] != 0) : (ptr += 1) {}
-                const entryLen = ptr - start;
-                const entryW = block[start .. start + entryLen];
-                // Split at first '=' (skip leading '=' for drive vars).
-                var eq: ?usize = null;
-                const searchStart: usize = if (entryW.len > 0 and entryW[0] == '=') 1 else 0;
-                for (entryW[searchStart..], searchStart..) |ch, idx| {
-                    if (ch == '=') {
-                        eq = idx;
-                        break;
-                    }
-                }
-                if (eq) |eqIdx| {
-                    const keyW = entryW[0..eqIdx];
-                    const valW = entryW[eqIdx + 1 ..];
-                    const key = try unicode.wtf16LeToWtf8Alloc(allocator, keyW);
-                    errdefer allocator.free(key);
-                    const val = try unicode.wtf16LeToWtf8Alloc(allocator, valW);
-                    errdefer allocator.free(val);
-                    try out.put(key, val);
-                }
-                ptr += 1;
-            }
-        } else {
-            var i: usize = 0;
-            while (std.c.environ[i]) |entry| : (i += 1) {
-                const span = std.mem.span(entry);
-                const eq = std.mem.indexOfScalar(u8, span, '=') orelse continue;
-                const key = span[0..eq];
-                const val = span[eq + 1 ..];
-                const k = try allocator.dupe(u8, key);
-                errdefer allocator.free(k);
-                const v = try allocator.dupe(u8, val);
-                errdefer allocator.free(v);
-                try out.put(k, v);
-            }
+        var it = map.iterator();
+        while (it.next()) |entry| {
+            const k = try allocator.dupe(u8, entry.key_ptr.*);
+            errdefer allocator.free(k);
+            const v = try allocator.dupe(u8, entry.value_ptr.*);
+            errdefer allocator.free(v);
+            try out.put(k, v);
         }
         return out;
     }
@@ -150,72 +143,46 @@ pub const OsEnv = struct {
         return .{ .map = map, .allocator = allocator };
     }
 
-    /// Validate env key (common rules).
-    fn validateKey(key: []const u8) !void {
-        if (key.len == 0) return error.InvalidKey;
-        if (std.mem.indexOfScalar(u8, key, '=') != null) return error.InvalidKey;
-        if (std.mem.indexOfScalar(u8, key, 0) != null) return error.InvalidKey;
+    /// Single source of truth for runtime key validation.
+    /// Mirrors `std.process.Environ.Map.validateKeyForPut`: non-empty,
+    /// no `=`, no NUL (and valid WTF-8 on Windows).
+    pub fn validateKey(key: []const u8) !void {
+        if (!std.process.Environ.Map.validateKeyForPut(key)) return error.InvalidKey;
     }
 
-    // POSIX helpers. Short keys and values use stack buffers; longer ones fall back to the page allocator.
+    fn isValidKeySilent(key: []const u8) bool {
+        return std.process.Environ.Map.validateKeyForPut(key);
+    }
+
     fn getPosix(key: []const u8) ?[]const u8 {
-        // Fast stack path for keys < 512.
-        var stackBuf: [512]u8 = undefined;
-        const keyZ: [:0]const u8 = if (key.len < stackBuf.len) blk: {
-            @memcpy(stackBuf[0..key.len], key);
-            stackBuf[key.len] = 0;
-            break :blk stackBuf[0..key.len :0];
-        } else blk: {
-            const alloc = std.heap.page_allocator;
-            const dup = alloc.dupeSentinel(u8, key, 0) catch return null;
-            break :blk dup;
-        };
-        // For stack path, no alloc to free; for heap path, free.
-        const needsFree = key.len >= 512;
-        defer if (needsFree) std.heap.page_allocator.free(keyZ);
+        const alloc = std.heap.page_allocator;
+        const keyZ = alloc.dupeSentinel(u8, key, 0) catch return null;
+        defer alloc.free(keyZ);
         const cVal = std.c.getenv(keyZ) orelse return null;
         return std.mem.span(cVal);
     }
 
     fn setPosix(key: []const u8, value: []const u8) !void {
-        if (std.mem.indexOfScalar(u8, value, 0) != null) return error.InvalidValue;
-        // Stack for both key and value if small.
-        var keyStack: [512]u8 = undefined;
-        var valStack: [1024]u8 = undefined;
-        const useKeyStack = key.len < keyStack.len;
-        const useValStack = value.len < valStack.len;
-        const keyZ: [:0]const u8 = if (useKeyStack) blk: {
-            @memcpy(keyStack[0..key.len], key);
-            keyStack[key.len] = 0;
-            break :blk keyStack[0..key.len :0];
-        } else try std.heap.page_allocator.dupeSentinel(u8, key, 0);
-        defer if (!useKeyStack) std.heap.page_allocator.free(keyZ);
-        const valZ: [:0]const u8 = if (useValStack) blk: {
-            @memcpy(valStack[0..value.len], value);
-            valStack[value.len] = 0;
-            break :blk valStack[0..value.len :0];
-        } else try std.heap.page_allocator.dupeSentinel(u8, value, 0);
-        defer if (!useValStack) std.heap.page_allocator.free(valZ);
-        const ret = setenv(keyZ, valZ, 1);
-        if (ret != 0) return error.SetEnvFailed;
+        const alloc = std.heap.page_allocator;
+        const keyZ = try alloc.dupeSentinel(u8, key, 0);
+        defer alloc.free(keyZ);
+        const valZ = try alloc.dupeSentinel(u8, value, 0);
+        defer alloc.free(valZ);
+        if (setenv(keyZ, valZ, 1) != 0) return error.IoError;
     }
 
     fn unsetPosix(key: []const u8) !void {
-        var stackBuf: [512]u8 = undefined;
-        const useStack = key.len < stackBuf.len;
-        const keyZ: [:0]const u8 = if (useStack) blk: {
-            @memcpy(stackBuf[0..key.len], key);
-            stackBuf[key.len] = 0;
-            break :blk stackBuf[0..key.len :0];
-        } else try std.heap.page_allocator.dupeSentinel(u8, key, 0);
-        defer if (!useStack) std.heap.page_allocator.free(keyZ);
-        const ret = unsetenv(keyZ);
-        if (ret != 0) return error.UnsetEnvFailed;
+        const alloc = std.heap.page_allocator;
+        const keyZ = try alloc.dupeSentinel(u8, key, 0);
+        defer alloc.free(keyZ);
+        if (unsetenv(keyZ) != 0) return error.IoError;
     }
 
-    // Windows helpers.
-    threadlocal var tlsBuf: [8192]u8 = undefined;
-    threadlocal var tlsLen: usize = 0;
+    // Windows helpers (custom: std has no mutation API).
+    // Borrowed `get` uses a thread-local owned buffer resized per call,
+    // so arbitrarily long values work without fixed limits. The slice is
+    // valid until the next `get` on the same thread; dupe to retain.
+    threadlocal var tlsOwned: ?[]u8 = null;
 
     fn getWindows(key: []const u8) ?[]const u8 {
         const alloc = std.heap.page_allocator;
@@ -226,10 +193,8 @@ pub const OsEnv = struct {
         if (needed == 0) {
             const errCode = @backingInt(windows.GetLastError());
             if (errCode == 203) return null; // ERROR_ENVVAR_NOT_FOUND
-            // Exists but empty.
             return "";
         }
-        // With a null buffer, the return value is the required size including the NUL terminator.
         var buf: [4096]u16 = undefined;
         if (needed <= buf.len) {
             SetLastError(0);
@@ -258,28 +223,26 @@ pub const OsEnv = struct {
         const alloc = std.heap.page_allocator;
         const tmp = unicode.wtf16LeToWtf8Alloc(alloc, w) catch return null;
         defer alloc.free(tmp);
-        if (tmp.len > tlsBuf.len) return null;
-        @memcpy(tlsBuf[0..tmp.len], tmp);
-        tlsLen = tmp.len;
-        return tlsBuf[0..tlsLen];
+        if (tlsOwned) |old| alloc.free(old);
+        const owned = alloc.dupe(u8, tmp) catch return null;
+        tlsOwned = owned;
+        return owned;
     }
 
     fn setWindows(key: []const u8, value: []const u8) !void {
         const alloc = std.heap.page_allocator;
-        const keyW = try unicode.wtf8ToWtf16LeAllocZ(alloc, key);
+        const keyW = unicode.wtf8ToWtf16LeAllocZ(alloc, key) catch return error.InvalidValue;
         defer alloc.free(keyW);
-        const valW = try unicode.wtf8ToWtf16LeAllocZ(alloc, value);
+        const valW = unicode.wtf8ToWtf16LeAllocZ(alloc, value) catch return error.InvalidValue;
         defer alloc.free(valW);
-        const ret = SetEnvironmentVariableW(keyW.ptr, valW.ptr);
-        if (ret == 0) return error.SetEnvFailed;
+        if (SetEnvironmentVariableW(keyW.ptr, valW.ptr) == 0) return error.IoError;
     }
 
     fn unsetWindows(key: []const u8) !void {
         const alloc = std.heap.page_allocator;
-        const keyW = try unicode.wtf8ToWtf16LeAllocZ(alloc, key);
+        const keyW = unicode.wtf8ToWtf16LeAllocZ(alloc, key) catch return error.InvalidValue;
         defer alloc.free(keyW);
-        const ret = SetEnvironmentVariableW(keyW.ptr, null);
-        if (ret == 0) return error.UnsetEnvFailed;
+        if (SetEnvironmentVariableW(keyW.ptr, null) == 0) return error.IoError;
     }
 
     fn envCount() usize {
@@ -304,9 +267,9 @@ pub const Snapshot = struct {
     }
 
     /// Restore environment to this snapshot state.
-    /// Removes keys not in snapshot, restores/sets keys in snapshot.
+    /// Removes keys added after the snapshot and restores snapshot values.
+    /// Process-global and thread-unsafe by OS design.
     pub fn restore(self: *const Snapshot) !void {
-        // Collect current keys.
         var cur = try OsEnv.getAllAlloc(self.allocator);
         defer {
             var it = cur.iterator();
@@ -316,17 +279,14 @@ pub const Snapshot = struct {
             }
             cur.deinit();
         }
-        // Remove keys that were added after snapshot.
         var curIt = cur.iterator();
         while (curIt.next()) |e| {
             if (!self.map.contains(e.key_ptr.*)) {
                 try OsEnv.unset(e.key_ptr.*);
             }
         }
-        // Set/restore snapshot keys.
         var snapIt = self.map.iterator();
         while (snapIt.next()) |e| {
-            // Only set if different or missing.
             const curVal = OsEnv.get(e.key_ptr.*);
             if (curVal == null or !std.mem.eql(u8, curVal.?, e.value_ptr.*)) {
                 try OsEnv.set(e.key_ptr.*, e.value_ptr.*);
@@ -337,7 +297,7 @@ pub const Snapshot = struct {
 
 /// Temporary environment scope.
 /// Saves original values for keys it touches and restores on `deinit`.
-/// Works on all platforms. Thread-unsafe (process env is global).
+/// Process-global and thread-unsafe; do not share across threads.
 pub const Scope = struct {
     allocator: std.mem.Allocator,
     saved: std.StringHashMap(?[]const u8),
@@ -394,14 +354,12 @@ pub const Scope = struct {
             if (maybeVal) |v| {
                 try OsEnv.set(key, v);
             } else {
-                // Key did not exist before; remove it, ignoring errors if already absent.
                 OsEnv.unset(key) catch {};
             }
         }
     }
 
     /// Temporarily run a function with given overrides.
-    /// Example: `try Scope.with(allocator, &.{ .{ .key="FOO", .value="bar" } }, myFunc);`
     pub fn with(allocator: std.mem.Allocator, overrides: []const struct { key: []const u8, value: ?[]const u8 }, func: *const fn () anyerror!void) !void {
         var scope = Scope.init(allocator);
         defer scope.deinit();
@@ -415,7 +373,6 @@ pub const Scope = struct {
 // Tests
 test "OsEnv set/get/unset" {
     const key = "ENV_ZIG_TEST_OS_ENV_BASIC";
-    // Ensure clean
     OsEnv.unset(key) catch {};
     try std.testing.expect(OsEnv.get(key) == null);
     try OsEnv.set(key, "hello");
@@ -436,7 +393,6 @@ test "OsEnv exists and isEmpty" {
     try std.testing.expect(!OsEnv.isEmpty(key));
     try OsEnv.set(key, "");
     const g = OsEnv.get(key);
-    // Empty string should be considered exists (POSIX) – on Windows we preserve empty via GetEnvironmentStringsW
     try std.testing.expect(g != null);
     try std.testing.expect(g.?.len == 0);
     try std.testing.expect(OsEnv.exists(key));
@@ -454,6 +410,14 @@ test "OsEnv getAlloc" {
     const missing = try OsEnv.getAlloc(std.testing.allocator, "ENV_ZIG_TEST_MISSING_12345");
     try std.testing.expect(missing == null);
     try OsEnv.unset(key);
+}
+
+test "OsEnv rejects invalid keys and NUL" {
+    try std.testing.expectError(error.InvalidKey, OsEnv.set("", "v"));
+    try std.testing.expectError(error.InvalidKey, OsEnv.set("A=B", "v"));
+    try std.testing.expectError(error.InvalidKey, OsEnv.set("A\x00B", "v"));
+    try std.testing.expectError(error.InvalidValue, OsEnv.set("ENV_ZIG_TEST_NUL", "a\x00b"));
+    OsEnv.unset("ENV_ZIG_TEST_NUL") catch {};
 }
 
 test "OsEnv Scope restores" {

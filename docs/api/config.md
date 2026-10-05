@@ -31,13 +31,16 @@ pub const Config = struct {
     maxInterpolationDepth: usize = 10,
     commentChar: u8 = '#',
     exportToEnv: bool = false,
-    preserveComments: bool = false,
     sortKeys: bool = false,
-    indent: usize = 0,
     trailingNewline: bool = true,
     quoteSpaces: bool = true,
 };
 ```
+
+Every field is implemented. `commentChar` must be `#`;
+`maxInterpolationDepth == 0` is rejected by `Config.validate`.
+Strict mode returns the specific `EnvError` (e.g. `error.InvalidKey`)
+instead of a generic `error.ParseError`.
 
 ## Config.with
 

@@ -21,21 +21,19 @@ The `Config` struct controls parsing, interpolation, and serialization behavior.
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `trim` | `bool` | `true` | Trim whitespace from keys and values |
+| `trim` | `bool` | `true` | Trim surrounding whitespace from unquoted values (quoted preserved) |
 | `allowEmpty` | `bool` | `true` | Allow empty values (`KEY=` or `KEY=""`) |
 | `interpolate` | `bool` | `true` | Enable variable interpolation (`${VAR}`, `$VAR`) |
 | `override` | `bool` | `true` | Override existing values when loading multiple files |
 | `strict` | `bool` | `false` | Fail on syntax errors instead of skipping invalid lines |
-| `allowInlineComments` | `bool` | `true` | Allow inline comments (`# comment` after value) |
-| `allowMultiline` | `bool` | `false` | Allow multiline values (backslash continuation) |
+| `allowInlineComments` | `bool` | `true` | Strip ` # comment` from unquoted values; quoted `#` is literal |
+| `allowMultiline` | `bool` | `false` | Backslash-newline continuation joins the next line |
 | `maxInterpolationDepth` | `usize` | `10` | Maximum interpolation recursion depth |
-| `commentChar` | `u8` | `#` | Character used for comments |
-| `exportToEnv` | `bool` | `false` | Export loaded values to the process environment |
-| `preserveComments` | `bool` | `false` | Preserve comments when serializing |
+| `commentChar` | `u8` | `#` | Line-comment character (only `#` is supported) |
+| `exportToEnv` | `bool` | `false` | Export `set`/`remove` to the process environment (failures returned) |
 | `sortKeys` | `bool` | `false` | Sort keys alphabetically when serializing |
-| `indent` | `usize` | `0` | Indentation for serialized output (number of spaces) |
-| `trailingNewline` | `bool` | `true` | Add a trailing newline when writing |
-| `quoteSpaces` | `bool` | `true` | Quote values that contain spaces when writing |
+| `trailingNewline` | `bool` | `true` | Emit trailing `\n` after the last entry |
+| `quoteSpaces` | `bool` | `true` | Quote values needing quotes for a lossless round-trip |
 
 ## Builder Pattern
 
@@ -52,11 +50,11 @@ const strict_config = config.with(.{
 
 ## Strict Mode
 
-In strict mode, the parser returns `error.ParseError` on invalid syntax:
+In strict mode, the parser returns the specific `EnvError` for invalid syntax:
 
 ```zig
 var env = envMod.Env.init(allocator, .{ .strict = true });
-try env.parseString("123BAD=value\n"); // Returns error.ParseError
+try env.parseString("123BAD=value\n"); // Returns error.InvalidKey
 ```
 
 In non-strict mode (default), invalid lines are silently skipped.

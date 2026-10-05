@@ -11,39 +11,36 @@ pub const SerEntry = struct {
 };
 
 /// Serialize key-value pairs back to .env format.
+/// Every value produced here parses back to an equal value.
 pub const Serializer = struct {
     /// Serialize entries to a .env formatted string.
+    /// Honors `cfg.sortKeys` only via `serializeSorted`; honors
+    /// `cfg.trailingNewline` and `cfg.quoteSpaces`.
+    /// Returns `error.InvalidValue` when a key or value contains NUL.
     pub fn serialize(
         allocator: std.mem.Allocator,
         entries: []const SerEntry,
         cfg: Config,
     ) ![]const u8 {
+        for (entries) |entry| {
+            if (std.mem.indexOfScalar(u8, entry.key, 0) != null) return error.InvalidValue;
+            if (std.mem.indexOfScalar(u8, entry.value, 0) != null) return error.InvalidValue;
+        }
         var result: std.ArrayList(u8) = .empty;
         errdefer result.deinit(allocator);
 
-        for (entries) |entry| {
-            try result.appendSlice(allocator, entry.key);
-            try result.append(allocator, '=');
-            if (helpers.needsQuoting(entry.value, cfg.quoteSpaces)) {
-                try result.append(allocator, '"');
-                for (entry.value) |ch| {
-                    if (helpers.escapedForChar(ch)) |esc| {
-                        try result.appendSlice(allocator, esc);
-                    } else {
-                        try result.append(allocator, ch);
-                    }
-                }
-                try result.append(allocator, '"');
-            } else {
-                try result.appendSlice(allocator, entry.value);
+        for (entries, 0..) |entry, idx| {
+            const isLast = idx + 1 == entries.len;
+            try encodeEntry(allocator, &result, entry, cfg);
+            if (!isLast or cfg.trailingNewline) {
+                try result.append(allocator, '\n');
             }
-            try result.append(allocator, '\n');
         }
 
         return try result.toOwnedSlice(allocator);
     }
 
-    /// Serialize entries sorted by key.
+    /// Serialize entries sorted by key without mutating the input.
     pub fn serializeSorted(
         allocator: std.mem.Allocator,
         entries: []const SerEntry,
@@ -68,6 +65,31 @@ pub const Serializer = struct {
         );
 
         return serialize(allocator, sorted.items, cfg);
+    }
+
+    /// Shared entry encoder used by `Serializer` and `Writer`.
+    /// Appends `KEY[=value]` without the trailing newline.
+    pub fn encodeEntry(
+        allocator: std.mem.Allocator,
+        out: *std.ArrayList(u8),
+        entry: SerEntry,
+        cfg: Config,
+    ) !void {
+        try out.appendSlice(allocator, entry.key);
+        try out.append(allocator, '=');
+        if (helpers.needsQuoting(entry.value, cfg.quoteSpaces)) {
+            try out.append(allocator, '"');
+            for (entry.value) |ch| {
+                if (helpers.escapedForChar(ch)) |esc| {
+                    try out.appendSlice(allocator, esc);
+                } else {
+                    try out.append(allocator, ch);
+                }
+            }
+            try out.append(allocator, '"');
+        } else {
+            try out.appendSlice(allocator, entry.value);
+        }
     }
 };
 

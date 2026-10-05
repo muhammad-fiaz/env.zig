@@ -71,17 +71,17 @@
 |---------|-------------|---------------|
 | **`.env` Parsing** | Load and parse `.env` files with comments, quotes, empty values, inline comments, and `export` prefix. | https://muhammad-fiaz.github.io/env.zig/guide/getting-started |
 | **Variable Interpolation** | `${VAR}`, `$VAR`, `${VAR:-default}`, `${VAR:+alt}`, `${VAR:?err}`, nested defaults, `$env:VAR` with OS fallback, circular detection, max depth. | https://muhammad-fiaz.github.io/env.zig/guide/interpolation |
-| **OS Environment (Win/Linux/macOS)** | Native `get`/`set`/`unset`/`getAll`/`snapshot` via `getenv`/`SetEnvironmentVariableW` with WTF-8/WTF-16 handling, thread-local TLS buffer. | https://muhammad-fiaz.github.io/env.zig/guide/os-env |
-| **Temporary / Scoped Env** | `Scope`, `EnvScope`, `Snapshot` + `with` helper for automatic restore; `$env`-style isolation for tests and child processes. | https://muhammad-fiaz.github.io/env.zig/guide/os-env |
+| **OS Environment (Win/Linux/macOS)** | Explicit `env.runtime` namespace (`get`/`set`/`unset`/`getAll`/`snapshot`) reusing `std.process.Environ`; only `set`/`unset` use minimal OS bindings, WTF-8/WTF-16 aware, borrowed thread-local reads. | https://muhammad-fiaz.github.io/env.zig/guide/os-env |
+| **Temporary / Scoped Env** | `runtime.Scope`, `Env.EnvScope`, `Snapshot` + `with` helper for automatic restore; `$env`-style isolation for tests and child processes. | https://muhammad-fiaz.github.io/env.zig/guide/os-env |
 | **Shell Compatibility** | `export KEY=val`, `exportToEnv` sync, prefix-filtered `loadOsEnvWithPrefix("APP_")`. | https://muhammad-fiaz.github.io/env.zig/guide/getting-started |
 | **Escape Sequences** | `\n`, `\t`, `\r`, `\\`, `\"`, `\'`, `` \` ``, `\$`, `\0` in double-quoted values (single source via `helpers.unescape`). | https://muhammad-fiaz.github.io/env.zig/guide/getting-started |
 | **Schema Validation** | Define schemas with required fields, types, and custom validators. Errors for required, warnings for optional. | https://muhammad-fiaz.github.io/env.zig/guide/validation |
 | **Built-in Validators** | `required`, `boolean`, `integer`, `float`, `url`, `email`, `ipv4`, `hostname`, `port`, `range`, `minLength`, `maxLength`, `oneOf`. | https://muhammad-fiaz.github.io/env.zig/api/validators |
-| **Type-Safe Accessors** | `get`, `getString`, `getBool`, `getInt`, `getFloat`, `getEnum`, `getList` + `getOs`, `getWithFallback`, `require`, `containsOs`. | https://muhammad-fiaz.github.io/env.zig/api/env |
-| **Serialization** | Write back to `.env` with quoting, sorting, trailing newlines; shared `needsQuoting`/`escapedForChar` helpers. | https://muhammad-fiaz.github.io/env.zig/guide/serialization |
+| **Type-Safe Accessors** | `get`, `getString`, `getAlloc`, `getOrDefault`, `getBool`, `getInt`, `getFloat`, `getEnum`, `getValue`, `getList` (owned) + `getOs`, `getWithFallback`, `requireOs`, `containsOs`. | https://muhammad-fiaz.github.io/env.zig/api/env |
+| **Serialization** | Write back to `.env` with quoting, sorting, trailing newlines; shared `needsQuoting`/`escapedForChar` helpers; `parse(serialize(x))` round-trip preserved. | https://muhammad-fiaz.github.io/env.zig/guide/serialization |
 | **Insertion Order** | Guaranteed order (unlike `std.process.Environ`). | https://muhammad-fiaz.github.io/env.zig/api/env |
-| **Cache** | Built-in `Cache` for frequently accessed values. | https://muhammad-fiaz.github.io/env.zig/api/env |
-| **Iterator** | `next`, `peek`, `reset`, `skip`, `remaining`, `collect`. | https://muhammad-fiaz.github.io/env.zig/api/env |
+| **Cache** | Standalone `Cache` for memoization (no longer owned by `Env`). | https://muhammad-fiaz.github.io/env.zig/api/env |
+| **Iterator** | Borrowed `next`, `peek`, `reset`, `skip`, `remaining`, `collect` (no allocation). | https://muhammad-fiaz.github.io/env.zig/api/env |
 | **Config Builder** | Chainable `.with()` pattern. | https://muhammad-fiaz.github.io/env.zig/api/config |
 | **Environ.Map** | `toEnvironMap` / `applyToEnvironMap` for `std.process.spawn` child envs. | https://muhammad-fiaz.github.io/env.zig/guide/os-env |
 | **Clone & Merge** | Deep copy and merge `Env` instances. | https://muhammad-fiaz.github.io/env.zig/api/env |
@@ -257,15 +257,15 @@ pub fn main(init: std.process.Init) !void {
 ### OS Environment (Windows/Linux/macOS)
 
 ```zig
-const OsEnv = envMod.OsEnv;
+const runtime = envMod.runtime;
 const Scope = envMod.Scope;
 
-// Native OS
-try OsEnv.set("MY_KEY", "value");
-const v = OsEnv.get("MY_KEY"); // ?[]const u8
-try OsEnv.unset("MY_KEY");
+// Native runtime (process-global, thread-unsafe)
+try runtime.set("MY_KEY", "value");
+const v = runtime.get("MY_KEY"); // ?[]const u8, borrowed
+try runtime.unset("MY_KEY");
 
-// Env + OS fallback (like $VAR)
+// Env + runtime fallback (like $VAR)
 const host = env.getOs("HOST") orelse "localhost";
 try env.loadOsEnv(); // import all OS vars
 try env.loadOsEnvWithPrefix("APP_"); // APP_PORT -> PORT
@@ -282,7 +282,7 @@ defer map.deinit();
     try scope.set("TMP", "temporary");
     // restored on deinit
 }
-var snap = try OsEnv.snapshot(allocator);
+var snap = try runtime.snapshot(allocator);
 defer snap.deinit();
 try snap.restore();
 ```
@@ -349,19 +349,22 @@ try es.set("PORT", "9090");
 
 ## Examples
 
-The `examples/` directory contains **11 comprehensive, runnable examples** covering all error paths, callbacks and returns:
+The `examples/` directory contains **14 comprehensive, runnable examples** covering all error paths, callbacks and returns:
 
 - **Basic** - Set/get, type-safe accessors, iteration.
 - **Interpolation** - Nested `${VAR}`, defaults, OS fallback, `$env:VAR`.
-- **OS Environment** - Native `OsEnv`, `Scope`, `Snapshot`, `Environ.Map` (Windows/Linux/macOS).
+- **OS Environment** - Native `runtime` (`OsEnv` alias), `Scope`, `Snapshot`, `Environ.Map` (Windows/Linux/macOS).
+- **Runtime** - `runtime.get/set/unset`, missing vs empty, key validation, long values, snapshot/scope.
+- **Child Env** - `toEnvironMap`/`applyToEnvironMap` plus POSIX/Windows blocks for `spawn`.
+- **Unicode** - UTF-8 values, emoji, runtime round-trip, serialize/parse preservation.
 - **Validation** - Schema validation, custom `ValidatorFn` callbacks, `err` vs `warning`.
 - **Serialization** - Sorting, quoting, trailing newlines.
 - **Clone & Merge** - Deep copy and default merging.
-- **Cache** - Built-in `Cache` API.
-- **Iterator** - `peek`, `skip`, `reset`, `collect`.
-- **File I/O** - `load`/`save`/`loadMany`/`reload`, `loadOsEnvWithPrefix`, `exportToOsEnv` with correct `FileNotFound`/`IoError` returns.
-- **Error Handling** - `strict` mode, `ParseError`, `FileNotFound`, `CircularDependency`, `NoSpaceLeft` via `Writer`.
-- **Type-Safe** - `getBool`/`getInt`/`getFloat`/`getEnum`/`getList` with `null` returns on `TypeMismatch`, `getOs`/`containsOs`.
+- **Cache** - Standalone `Cache` API (no longer owned by `Env`).
+- **Iterator** - Borrowed `peek`, `skip`, `reset`, `collect` (no allocation).
+- **File I/O** - `load`/`save`/`loadMany`/`reload`, `loadOsEnvWithPrefix`, `exportToOsEnv` with correct `FileNotFound`/`PermissionDenied`/`IoError` returns.
+- **Error Handling** - `strict` mode with specific errors (`InvalidKey`, ...), `FileNotFound`, `CircularDependency`, `NoSpaceLeft` via `Writer`.
+- **Type-Safe** - `getBool`/`getInt`/`getFloat`/`getEnum`/`getList` (owned)/`getValue` with `null` on missing, `TypeMismatch` via `tryGet*`, `getOs`/`containsOs`.
 
 To run:
 

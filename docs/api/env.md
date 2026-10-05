@@ -46,22 +46,34 @@ pub fn reload(self: *Env, path: []const u8) !void
 
 ## Reading Values
 
-### `get` / `getString` / `getBool` / `getInt` / `getFloat` / `getEnum` / `getList` / `contains`
+### `get` / `getString` / `getAlloc` / `getOrDefault` / `getBool` / `getInt` / `getFloat` / `getEnum` / `getValue` / `getList` / `contains` / `isEmpty` / `require`
 
 ```zig
-pub fn get(self: *const Env, key: []const u8) ?[]const u8
+pub fn get(self: *const Env, key: []const u8) ?[]const u8 // borrowed; null = missing
+pub fn getAlloc(self: *const Env, allocator: std.mem.Allocator, key: []const u8) !?[]u8 // owned
+pub fn getOrDefault(self: *const Env, key: []const u8, defaultValue: []const u8) []const u8
 pub fn getBool(self: *const Env, key: []const u8) ?bool // true/false/yes/no/1/0/on/off
 pub fn getInt(self: *const Env, comptime T: type, key: []const u8) ?T
-pub fn getList(self: *const Env, allocator: std.mem.Allocator, key: []const u8, delimiter: u8) ?[][]const u8
+pub fn getFloat(self: *const Env, comptime T: type, key: []const u8) ?T
+pub fn getEnum(self: *const Env, comptime E: type, key: []const u8) ?E
+pub fn getValue(self: *const Env, comptime T: type, key: []const u8) ?T // bool/int/float/enum/[]const u8
+pub fn getValueOrDefault(self: *const Env, comptime T: type, key: []const u8, defaultValue: T) T
+pub fn getList(self: *const Env, allocator: std.mem.Allocator, key: []const u8, delimiter: u8) ?[][]const u8 // owned items + slice
+pub fn contains(self: *const Env, key: []const u8) bool
+pub fn isEmpty(self: *const Env, key: []const u8) bool // missing or empty
+pub fn require(self: *const Env, key: []const u8) ![]const u8 // store-only; error.MissingRequired
 ```
 
-### OS-aware reads
+`getList` owns every item and the outer slice: free each item, then the slice.
+
+### OS-aware reads (`Env` -> runtime fallback)
 
 ```zig
-pub fn getOs(self: *const Env, key: []const u8) ?[]const u8 // Env → OsEnv fallback
+pub fn getOs(self: *const Env, key: []const u8) ?[]const u8 // Env → runtime fallback
+pub fn getOsAlloc(self: *const Env, allocator: std.mem.Allocator, key: []const u8) !?[]u8 // owned
 pub fn containsOs(self: *const Env, key: []const u8) bool
 pub fn getWithFallback(self: *const Env, key: []const u8, fallback: []const u8) []const u8
-pub fn require(self: *const Env, key: []const u8) ![]const u8 // error.MissingRequired
+pub fn requireOs(self: *const Env, key: []const u8) ![]const u8 // error.MissingRequired
 pub fn fetchOs(self: *Env, key: []const u8) !?[]const u8 // copy OS → Env
 ```
 
@@ -89,8 +101,8 @@ pub fn exportToOsEnv(self: *const Env) !void // Env → OsEnv.set
 ### `remove` / `unsetOs` / `clear`
 
 ```zig
-pub fn remove(self: *Env, key: []const u8) bool // also OsEnv.unset if exportToEnv
-pub fn unsetOs(self: *Env, key: []const u8) bool
+pub fn remove(self: *Env, key: []const u8) !bool // also runtime.unset if exportToEnv; failures returned
+pub fn unsetOs(self: *Env, key: []const u8) !bool
 pub fn clear(self: *Env) void
 ```
 
@@ -100,8 +112,8 @@ pub fn clear(self: *Env) void
 
 ```zig
 pub fn count(self: *const Env) usize
-pub fn keys(self: *const Env) []const []const u8 // insertion order
-pub fn iterator(self: *const Env) Iterator // owns Entry slice; call deinit
+pub fn keys(self: *const Env) []const []const u8 // insertion order, borrowed
+pub fn iterator(self: *const Env) EnvIterator // borrowed, no allocation; deinit is a no-op
 ```
 
 ## Serialization
@@ -125,24 +137,26 @@ pub fn scope(self: *Env) EnvScope
 pub fn withTemp(self: *Env, key: []const u8, value: []const u8, func: *const fn(*Env) anyerror!void) !void
 ```
 
-### `OsEnv`
+### `runtime` (explicit process-environment namespace)
 
-Re-exported from `os_env.zig` — cross-platform (`setenv`/`GetEnvironmentVariableW` with `SetLastError(0)`).
+Prefer `env.runtime.*` for process env; `Env` is the in-memory store.
+Mutation is process-global and thread-unsafe by OS design.
 
 ```zig
-pub const OsEnv = os_env.OsEnv; // get/set/unset/getAll/snapshot + thread-local TLS
-pub const Scope = os_env.Scope; // OS-level temporary env
+pub const runtime = @import("runtime.zig"); // get/set/unset/getAlloc/getOrDefault/contains/isEmpty/getAll/getMap/snapshot + Scope/Snapshot
+pub const OsEnv = os_env.OsEnv; // legacy alias of the same implementation
+pub const Scope = os_env.Scope;
 pub const Snapshot = os_env.Snapshot;
 pub fn snapshotOs(self: *const Env) !Snapshot
 ```
 
 ```zig
-// OsEnv direct
-try OsEnv.set("K","v");
-const v = OsEnv.get("K");
-try OsEnv.unset("K");
-var m = try OsEnv.getAllAlloc(allocator); // StringHashMap
-var snap = try OsEnv.snapshot(allocator); defer snap.deinit(); try snap.restore();
+// runtime direct (preferred)
+try runtime.set("K","v");
+const v = runtime.get("K"); // borrowed; dupe to retain (thread-local on Windows)
+try runtime.unset("K");
+var m = try runtime.getAll(allocator); // StringHashMap, owned
+var snap = try runtime.snapshot(allocator); defer snap.deinit(); try snap.restore();
 var sc = Scope.init(allocator); defer sc.deinit(); try sc.set("K","tmp");
 
 // Env → child env
