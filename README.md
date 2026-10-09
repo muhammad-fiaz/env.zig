@@ -155,13 +155,13 @@ zig build -Dtarget=x86-windows
 **Latest Release for Zig 0.17.0+ (v0.0.3)**
 
 ```bash
-zig fetch https://github.com/muhammad-fiaz/env.zig/archive/refs/tags/0.0.3.tar.gz
+zig fetch --save https://github.com/muhammad-fiaz/env.zig/archive/refs/tags/0.0.3.tar.gz
 ```
 
 **Previous Stable Release for Zig 0.16.0 (v0.0.2)**
 
 ```bash
-zig fetch https://github.com/muhammad-fiaz/env.zig/archive/refs/tags/0.0.2.tar.gz
+zig fetch --save https://github.com/muhammad-fiaz/env.zig/archive/refs/tags/0.0.2.tar.gz
 ```
 
 | env.zig | Zig |
@@ -177,7 +177,7 @@ zig fetch https://github.com/muhammad-fiaz/env.zig/archive/refs/tags/0.0.2.tar.g
 Use the latest development version from the `main` branch.
 
 ```bash
-zig fetch git+https://github.com/muhammad-fiaz/env.zig.git
+zig fetch --save git+https://github.com/muhammad-fiaz/env.zig.git
 ```
 
 ### Method 3: Manual `build.zig.zon` Configuration
