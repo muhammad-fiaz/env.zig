@@ -25,7 +25,7 @@ export default defineConfig({
   base: "/env.zig/",
 
   sitemap: {
-    hostname: SITE_URL,
+    hostname: SITE_URL + "/",
   },
 
   vite: {
